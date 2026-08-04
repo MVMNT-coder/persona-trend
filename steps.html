@@ -1,0 +1,1799 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ペルソナ作成 — 未来社会ガチャ</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@500;700&family=Noto+Sans+JP:wght@300;400;500;700&display=swap" rel="stylesheet">
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+  <script src="firebase-config.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    @keyframes reveal {
+      from { opacity: 0; transform: translateY(10px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    :root {
+      --bg:           #f8f7f4;
+      --surface:      #ffffff;
+      --accent:       #5c50d6;
+      --accent-light: #ede9ff;
+      --text:         #1a1a1a;
+      --text-sub:     #6b6b6b;
+      --text-muted:   #a0a0a0;
+      --border:       #e8e6e0;
+      --c-social:     #2563eb;
+      --c-social-bg:  #eff6ff;
+      --c-value:      #7c3aed;
+      --c-value-bg:   #f5f3ff;
+      --c-life:       #059669;
+      --c-life-bg:    #ecfdf5;
+      --c-chaos:      #db2777;
+      --c-chaos-bg:   #fdf2f8;
+      --font-serif:   'Shippori Mincho', serif;
+      --font-sans:    'Noto Sans JP', sans-serif;
+    }
+
+    html { -webkit-font-smoothing: antialiased; }
+
+    body {
+      font-family: var(--font-sans);
+      font-weight: 400;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* ── Site nav ── */
+    .site-nav {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      position: sticky; top: 0; z-index: 100;
+    }
+    .nav-inner {
+      max-width: 1000px; margin: 0 auto; padding: 0 24px;
+      height: 56px; display: flex; align-items: center;
+      justify-content: space-between;
+    }
+    .nav-logo {
+      font-family: var(--font-serif); font-weight: 700;
+      font-size: 0.9375rem; color: var(--text); text-decoration: none;
+      letter-spacing: 0.02em;
+    }
+    .nav-link {
+      font-size: 0.8125rem; color: var(--text-sub);
+      text-decoration: none; transition: color 0.15s;
+    }
+    .nav-link:hover { color: var(--accent); }
+
+    /* ── Page body ── */
+    .page-body { max-width: 1000px; margin: 0 auto; padding: 40px 24px 80px; }
+
+    /* ── Room badge ── */
+    .room-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 4px 12px; background: var(--c-life-bg);
+      border: 1px solid #a7f3d0; border-radius: 20px;
+      font-size: 0.72rem; color: var(--c-life);
+      margin-bottom: 16px; letter-spacing: 0.04em; font-weight: 500;
+    }
+
+    h1 {
+      font-family: var(--font-serif); font-weight: 700;
+      font-size: 1.5rem; color: var(--text);
+      letter-spacing: 0.04em; margin-bottom: 28px; text-align: center;
+    }
+
+    /* ── Progress ── */
+    .progress-wrap { max-width: 560px; margin: 0 auto 40px; }
+    .progress-track {
+      display: flex; align-items: flex-start; justify-content: space-between;
+    }
+    .prog-step {
+      display: flex; flex-direction: column; align-items: center;
+      gap: 6px; flex: 1;
+    }
+    .prog-dot {
+      width: 32px; height: 32px; border-radius: 50%;
+      border: 2px solid var(--border); background: var(--surface);
+      color: var(--text-muted); display: flex; align-items: center;
+      justify-content: center; font-size: 0.82rem; font-weight: 700;
+      transition: all 0.3s; flex-shrink: 0;
+    }
+    .prog-dot.active { border-color: var(--accent); color: var(--accent); }
+    .prog-dot.done   { border-color: var(--accent); background: var(--accent); color: #fff; }
+    .prog-label {
+      font-size: 0.62rem; color: var(--text-muted);
+      text-align: center; letter-spacing: 0.04em;
+      line-height: 1.3; transition: color 0.3s;
+    }
+    .prog-step.active .prog-label { color: var(--accent); }
+    .prog-step.done   .prog-label { color: var(--text-sub); }
+    .prog-connector {
+      flex: 1; height: 2px; background: var(--border);
+      margin-top: 15px; max-width: 56px; transition: background 0.3s;
+    }
+    .prog-connector.done { background: var(--accent); }
+
+    /* ── Pane ── */
+    .pane { }
+    .pane.hidden { display: none; }
+
+    .pane-intro { margin-bottom: 28px; }
+    .step-badge {
+      font-size: 0.68rem; color: var(--accent); letter-spacing: 0.14em;
+      font-weight: 700; text-transform: uppercase; margin-bottom: 6px;
+    }
+    .age-reminder {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: var(--accent-light); color: var(--accent);
+      font-size: 0.78rem; font-weight: 500;
+      padding: 4px 12px; border-radius: 100px;
+      margin-bottom: 14px;
+    }
+    .age-reminder::before { content: '👤'; font-size: 0.72rem; }
+    .pane h2 {
+      font-family: var(--font-serif); font-weight: 700;
+      font-size: 1.375rem; color: var(--text);
+      margin-bottom: 8px; letter-spacing: 0.02em;
+    }
+    .step-desc {
+      font-size: 0.875rem; color: var(--text-sub);
+      line-height: 1.75;
+    }
+
+    /* ── Two-column layout ── */
+    .pane-cols {
+      display: grid;
+      grid-template-columns: 2fr 3fr;
+      gap: 40px;
+      align-items: start;
+      margin-bottom: 32px;
+    }
+
+    /* ── Left column: reference + examples ── */
+    .pane-left { display: flex; flex-direction: column; gap: 14px; }
+
+    .ref-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; padding: 14px 16px;
+    }
+    .ref-card.social { border-left: 3px solid var(--c-social); }
+    .ref-card.value  { border-left: 3px solid var(--c-value); }
+    .ref-card.life   { border-left: 3px solid var(--c-life); }
+    .ref-card.chaos  { border-left: 3px solid var(--c-chaos); }
+    .ref-card-cat {
+      font-size: 0.65rem; font-weight: 700;
+      letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 5px;
+    }
+    .ref-card.social .ref-card-cat { color: var(--c-social); }
+    .ref-card.value  .ref-card-cat { color: var(--c-value); }
+    .ref-card.life   .ref-card-cat { color: var(--c-life); }
+    .ref-card.chaos  .ref-card-cat { color: var(--c-chaos); }
+    .ref-card-title {
+      font-family: var(--font-serif); font-weight: 700;
+      font-size: 0.9375rem; color: var(--text); margin-bottom: 4px;
+    }
+    .ref-card-desc { font-size: 0.78rem; color: var(--text-sub); line-height: 1.6; }
+
+    /* Extra draw */
+    .btn-extra {
+      width: 100%; padding: 8px 16px; background: transparent;
+      color: var(--c-social); border: 1.5px solid var(--c-social);
+      border-radius: 8px; font-size: 0.8rem; font-weight: 600;
+      cursor: pointer; transition: all 0.2s; font-family: var(--font-sans);
+      letter-spacing: 0.04em; text-align: center;
+    }
+    .btn-extra:hover { background: var(--c-social-bg); }
+    .btn-extra:disabled { opacity: 0.4; cursor: not-allowed; }
+    #extra-cards { display: flex; flex-direction: column; gap: 10px; }
+    .extra-card-appear { animation: reveal 0.4s ease; }
+
+    /* Example box */
+    .example-box {
+      background: var(--accent-light);
+      border-radius: 12px; padding: 16px 18px;
+    }
+    .example-label {
+      font-size: 0.6rem; font-weight: 700; letter-spacing: 0.16em;
+      text-transform: uppercase; color: var(--accent); margin-bottom: 12px;
+    }
+    .example-text {
+      font-size: 0.82rem; color: var(--text); line-height: 1.7;
+    }
+    .example-qa { margin-bottom: 10px; }
+    .example-qa:last-child { margin-bottom: 0; }
+    .example-q {
+      font-size: 0.68rem; font-weight: 500; color: var(--text-sub);
+      margin-bottom: 2px; line-height: 1.4;
+    }
+    .example-a { font-size: 0.81rem; color: var(--text); line-height: 1.65; }
+
+    /* Example persona (step 4) */
+    .example-persona {
+      background: var(--accent-light);
+      border-radius: 12px; padding: 16px 18px;
+    }
+    .ex-persona-header {
+      display: flex; align-items: baseline; gap: 8px; margin-bottom: 14px;
+    }
+    .ex-persona-name {
+      font-family: var(--font-serif); font-weight: 700;
+      font-size: 1.05rem; color: var(--text);
+    }
+    .ex-persona-age { font-size: 0.8rem; color: var(--text-sub); }
+    .ex-field { margin-bottom: 10px; }
+    .ex-field:last-child { margin-bottom: 0; }
+    .ex-field-label {
+      font-size: 0.6rem; font-weight: 700; letter-spacing: 0.12em;
+      text-transform: uppercase; color: var(--accent); margin-bottom: 2px;
+    }
+    .ex-field-value { font-size: 0.81rem; color: var(--text); line-height: 1.65; }
+
+    /* ── Right column: input fields ── */
+    .pane-right { display: flex; flex-direction: column; gap: 0; }
+
+    .field-group { margin-bottom: 18px; }
+    .field-group:last-child { margin-bottom: 0; }
+    .field-group label {
+      display: block; font-size: 0.8125rem; font-weight: 500;
+      color: var(--text-sub); margin-bottom: 6px;
+      letter-spacing: 0.01em; line-height: 1.5;
+    }
+    textarea, input[type="text"] {
+      width: 100%; background: var(--surface);
+      border: 1px solid var(--border); border-radius: 8px;
+      color: var(--text); font-family: var(--font-sans);
+      font-size: 0.875rem; line-height: 1.7;
+      padding: 10px 13px; resize: vertical;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    textarea:focus, input[type="text"]:focus {
+      outline: none; border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-light);
+    }
+    textarea::placeholder, input::placeholder { color: var(--text-muted); }
+
+    .form-row { display: grid; grid-template-columns: 2fr 1fr; gap: 12px; }
+
+    /* ── Navigation ── */
+    .pane-nav {
+      display: flex; justify-content: space-between; align-items: center;
+      padding-top: 20px; border-top: 1px solid var(--border);
+    }
+    .btn-nav {
+      padding: 10px 28px; border-radius: 8px;
+      border: 1.5px solid var(--border); background: transparent;
+      color: var(--text-sub); font-size: 0.875rem; font-weight: 500;
+      cursor: pointer; transition: all 0.2s; font-family: var(--font-sans);
+      letter-spacing: 0.04em; text-decoration: none; display: inline-block;
+    }
+    .btn-nav:hover { border-color: var(--accent); color: var(--accent); }
+    .btn-nav.primary {
+      border-color: var(--accent); color: var(--accent); background: var(--surface);
+    }
+    .btn-nav.primary:hover { background: var(--accent); color: #fff; }
+
+    /* ── Generate button ── */
+    .generate-wrap { text-align: center; margin-bottom: 20px; }
+    .btn-generate {
+      padding: 14px 52px; background: var(--accent);
+      color: #fff; border: none; border-radius: 100px;
+      font-size: 1rem; font-weight: 700; letter-spacing: 0.06em;
+      cursor: pointer; transition: all 0.2s; font-family: var(--font-sans);
+      box-shadow: 0 4px 20px rgba(92, 80, 214, 0.25);
+    }
+    .btn-generate:hover {
+      background: #4b40c4; transform: translateY(-2px);
+      box-shadow: 0 8px 28px rgba(92, 80, 214, 0.35);
+    }
+
+    /* ── Discussion memo (voice) ── */
+    .discussion-wrap {
+      margin-bottom: 28px;
+      padding: 20px 24px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+    }
+    .discussion-label {
+      font-size: 0.7rem; font-weight: 700;
+      letter-spacing: 0.12em; text-transform: uppercase;
+      color: var(--text-muted); margin-bottom: 12px;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .discussion-label::before {
+      content: '🎙'; font-size: 0.85rem;
+    }
+    .voice-controls {
+      display: flex; align-items: center; gap: 12px;
+      margin-bottom: 10px;
+    }
+    .btn-record {
+      display: flex; align-items: center; gap: 6px;
+      padding: 8px 20px;
+      background: var(--surface); border: 1.5px solid var(--border);
+      border-radius: 20px; font-size: 0.82rem; font-weight: 600;
+      cursor: pointer; transition: all 0.2s; font-family: var(--font-sans);
+      color: var(--text-sub); white-space: nowrap;
+    }
+    .btn-record:hover { border-color: var(--accent); color: var(--accent); }
+    .btn-record.recording {
+      background: #fef2f2; border-color: #ef4444; color: #ef4444;
+    }
+    .btn-record .rec-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: currentColor; flex-shrink: 0;
+    }
+    .btn-record.recording .rec-dot {
+      animation: blink 1s ease-in-out infinite;
+    }
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.2; }
+    }
+    .record-status {
+      font-size: 0.75rem; color: var(--text-muted); letter-spacing: 0.04em;
+    }
+    .record-status.active { color: #ef4444; }
+    .voice-interim {
+      font-size: 0.82rem; color: var(--text-muted);
+      line-height: 1.65; min-height: 1.4em;
+      font-style: italic; margin-bottom: 6px;
+    }
+    .voice-unsupported {
+      font-size: 0.75rem; color: var(--text-muted);
+      margin-bottom: 8px; display: none;
+    }
+
+    /* ── Previous step summary ── */
+    .prev-summary-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px; padding: 14px 16px;
+    }
+    .prev-summary-title {
+      font-size: 0.6rem; font-weight: 700;
+      letter-spacing: 0.12em; text-transform: uppercase;
+      color: var(--text-muted); margin-bottom: 10px;
+    }
+    .prev-summary-section { margin-bottom: 10px; }
+    .prev-summary-section:last-child { margin-bottom: 0; }
+    .prev-summary-step-label {
+      font-size: 0.6rem; font-weight: 700;
+      color: var(--accent); letter-spacing: 0.1em;
+      text-transform: uppercase; margin-bottom: 6px;
+      padding-bottom: 4px; border-bottom: 1px solid var(--border);
+    }
+    .prev-summary-item { margin-bottom: 6px; }
+    .prev-summary-item:last-child { margin-bottom: 0; }
+    .prev-summary-q {
+      font-size: 0.65rem; color: var(--text-muted);
+      margin-bottom: 1px; line-height: 1.4;
+    }
+    .prev-summary-a {
+      font-size: 0.8rem; color: var(--text); line-height: 1.6;
+    }
+
+    /* ── Share button ── */
+    .btn-share {
+      display: flex; align-items: center; gap: 6px;
+      padding: 8px 22px; border-radius: 8px;
+      border: 1.5px solid var(--c-life); color: var(--c-life);
+      background: var(--c-life-bg); font-size: 0.82rem; font-weight: 600;
+      cursor: pointer; transition: all 0.25s; font-family: var(--font-sans);
+      letter-spacing: 0.04em; white-space: nowrap;
+    }
+    .btn-share:hover { background: var(--c-life); color: #fff; }
+    .btn-share.sent  { background: var(--c-life); color: #fff; pointer-events: none; }
+
+    /* ── Sync indicator ── */
+    .sync-dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: var(--c-life); flex-shrink: 0;
+      animation: syncPulse 2s ease-in-out infinite;
+    }
+    @keyframes syncPulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
+
+    /* ── Timer ── */
+    .timer-bar {
+      display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 10px; padding: 10px 16px;
+      margin-bottom: 24px; transition: background 0.3s, border-color 0.3s;
+    }
+    .timer-bar.expired-flash { background: #fef2f2; border-color: #fca5a5; }
+    .timer-label {
+      font-size: 0.65rem; font-weight: 700; letter-spacing: 0.12em;
+      text-transform: uppercase; color: var(--text-muted); white-space: nowrap;
+    }
+    .timer-presets { display: flex; gap: 5px; }
+    .timer-preset {
+      padding: 3px 11px; border-radius: 20px;
+      background: var(--bg); border: 1px solid var(--border);
+      font-size: 0.75rem; font-weight: 500; cursor: pointer;
+      color: var(--text-sub); font-family: var(--font-sans);
+      transition: all 0.15s;
+    }
+    .timer-preset:hover  { border-color: var(--accent); color: var(--accent); }
+    .timer-preset.active { background: var(--accent-light); border-color: var(--accent); color: var(--accent); font-weight: 700; }
+    .timer-digits {
+      font-family: var(--font-serif); font-size: 1.45rem; font-weight: 700;
+      color: var(--text); min-width: 70px; text-align: center;
+      letter-spacing: 0.06em; transition: color 0.3s;
+    }
+    .timer-digits.warning { color: #d97706; }
+    .timer-digits.expired { color: #ef4444; }
+    .timer-controls { display: flex; gap: 7px; margin-left: auto; align-items: center; }
+    .btn-timer-start {
+      padding: 5px 16px; border-radius: 20px;
+      background: var(--accent); color: #fff; border: none;
+      font-size: 0.8rem; font-weight: 600; cursor: pointer;
+      font-family: var(--font-sans); transition: background 0.2s;
+      white-space: nowrap;
+    }
+    .btn-timer-start:hover  { background: #4b40c4; }
+    .btn-timer-start.running { background: var(--c-life); }
+    .btn-timer-reset {
+      padding: 5px 10px; border-radius: 20px;
+      background: transparent; border: 1px solid var(--border);
+      color: var(--text-muted); font-size: 0.85rem; cursor: pointer;
+      font-family: var(--font-sans); transition: all 0.15s;
+    }
+    .btn-timer-reset:hover { border-color: var(--text-sub); color: var(--text-sub); }
+
+    /* ── Key decision field ── */
+    .key-field {
+      background: var(--accent-light);
+      border: 1.5px solid var(--accent);
+      border-radius: 12px;
+      padding: 14px 16px 16px;
+      margin-bottom: 22px;
+    }
+    .key-field label {
+      color: var(--accent) !important;
+      font-weight: 700 !important;
+    }
+    .key-field input[type="text"],
+    .key-field textarea {
+      border-color: var(--accent);
+      background: var(--surface);
+    }
+    .key-field-hint {
+      font-size: 0.68rem; color: var(--accent);
+      margin-bottom: 8px; font-weight: 500;
+      letter-spacing: 0.06em; text-transform: uppercase;
+    }
+
+    /* ── 想像ヒントブロック ── */
+    .step-hint {
+      background: #f0f9ff;
+      border-left: 3px solid #0ea5e9;
+      border-radius: 0 8px 8px 0;
+      padding: 12px 16px;
+      margin-top: 14px;
+    }
+    .step-hint-label {
+      font-size: 0.62rem; font-weight: 700; letter-spacing: 0.14em;
+      text-transform: uppercase; color: #0ea5e9; margin-bottom: 8px;
+    }
+    .step-hint-list {
+      list-style: none; padding: 0; margin: 0;
+    }
+    .step-hint-list li {
+      font-size: 0.8rem; color: var(--text-sub);
+      line-height: 1.65; padding-left: 1.2em; position: relative;
+      margin-bottom: 4px;
+    }
+    .step-hint-list li:last-child { margin-bottom: 0; }
+    .step-hint-list li::before {
+      content: '→'; position: absolute; left: 0; color: #0ea5e9;
+    }
+
+    /* ── お題カード（時代テクスチャー） ── */
+    .odai-card {
+      background: #fdf2f8;
+      border: 2px solid var(--c-chaos);
+      border-radius: 12px;
+      padding: 16px 20px;
+      margin-bottom: 24px;
+    }
+    .odai-label {
+      font-size: 0.6rem; font-weight: 700;
+      letter-spacing: 0.18em; text-transform: uppercase;
+      color: var(--c-chaos); margin-bottom: 6px;
+    }
+    .odai-title {
+      font-family: var(--font-serif); font-size: 1.1rem;
+      font-weight: 700; color: var(--text);
+      margin-bottom: 6px; line-height: 1.45;
+    }
+    .odai-desc {
+      font-size: 0.82rem; color: var(--text-sub); line-height: 1.7;
+    }
+
+    /* ── Ref card example note ── */
+    .ref-example-badge {
+      display: inline-block;
+      font-size: 0.6rem; font-weight: 700; letter-spacing: 0.1em;
+      text-transform: uppercase; color: var(--text-muted);
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: 4px; padding: 1px 6px; margin-bottom: 4px;
+    }
+
+    /* ── Trends context set card (Step 1 left column) ── */
+    .trends-context {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .trends-context-label {
+      font-size: 0.6rem; font-weight: 700;
+      letter-spacing: 0.14em; text-transform: uppercase;
+      color: var(--text-muted);
+      padding: 10px 14px 8px;
+      border-bottom: 1px solid var(--border);
+    }
+    .trend-ctx-item {
+      padding: 12px 14px;
+    }
+    .trend-ctx-item.mega {
+      border-left: 3px solid #c2410c;
+    }
+    .trend-ctx-item.mid {
+      border-left: 3px solid #0369a1;
+      border-top: 1px solid var(--border);
+    }
+    .trend-ctx-type {
+      font-size: 0.58rem; font-weight: 700;
+      letter-spacing: 0.14em; text-transform: uppercase;
+      margin-bottom: 3px;
+    }
+    .trend-ctx-item.mega .trend-ctx-type { color: #ea580c; }
+    .trend-ctx-item.mid  .trend-ctx-type { color: #0284c7; }
+    .trend-ctx-title {
+      font-family: var(--font-serif); font-size: 0.92rem;
+      font-weight: 700; color: var(--text); margin-bottom: 4px;
+      line-height: 1.45;
+    }
+    .trend-ctx-desc {
+      font-size: 0.74rem; color: var(--text-sub);
+      line-height: 1.65;
+    }
+    .trend-ctx-principle {
+      margin-top: 6px; padding-top: 6px;
+      border-top: 1px solid rgba(0,0,0,0.07);
+      font-size: 0.7rem; line-height: 1.6;
+    }
+    .trend-ctx-item.mega .trend-ctx-principle { color: #9a3412; }
+    .trend-ctx-item.mid  .trend-ctx-principle { color: #075985; }
+    .trend-ctx-principle::before {
+      content: "行動原理 ▸ ";
+      font-size: 0.58rem; font-weight: 700; letter-spacing: 0.1em;
+      text-transform: uppercase; opacity: 0.7;
+    }
+
+    /* ── Responsive ── */
+    @media (max-width: 680px) {
+      .pane-cols { grid-template-columns: 1fr; gap: 24px; }
+      .form-row { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Site nav -->
+<nav class="site-nav">
+  <div class="nav-inner">
+    <a href="top.html" class="nav-logo">未来人ペルソナ探索ツール</a>
+    <a href="trends.html" class="nav-link">← トレンドに戻る</a>
+  </div>
+</nav>
+
+<div class="page-body">
+
+<div class="room-badge" id="room-badge" style="display:none">
+  <span>🏫</span><span id="room-badge-text"></span>
+  <span class="sync-dot" id="sync-dot" style="display:none" title="ライブ同期中"></span>
+</div>
+<h1>未来ペルソナを育てる</h1>
+
+<!-- ── Progress ── -->
+<div class="progress-wrap">
+  <div class="progress-track">
+    <div class="prog-step active" id="ps-1">
+      <div class="prog-dot active" id="pd-1">1</div>
+      <div class="prog-label">価値観の<br>転換</div>
+    </div>
+    <div class="prog-connector" id="pc-1"></div>
+    <div class="prog-step" id="ps-2">
+      <div class="prog-dot" id="pd-2">2</div>
+      <div class="prog-label">日常を<br>書く</div>
+    </div>
+    <div class="prog-connector" id="pc-2"></div>
+    <div class="prog-step" id="ps-3">
+      <div class="prog-dot" id="pd-3">3</div>
+      <div class="prog-label">プロ<br>フィール</div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     Step 1: 価値観の転換を考える
+════════════════════════════════════════════ -->
+<div id="pane-1" class="pane">
+  <div class="pane-intro">
+    <div class="step-badge">Step 1 / 3</div>
+    <div class="age-reminder" id="age-reminder-1">18歳〜30歳の未来人</div>
+    <h2 id="s1-heading">未来の18〜30歳の価値観を考える</h2>
+    <p class="step-desc" id="s1-desc">
+      社会に出たばかり、またはキャリアを模索している世代——この時代・環境のなかで、彼らは何を重視するようになるか。<br>
+      左の参考カードをヒントに、グループで「この18〜30歳の価値観」を自由に決めましょう。
+    </p>
+    <div class="step-hint">
+      <div class="step-hint-label">想像のヒント</div>
+      <ul class="step-hint-list" id="s1-hint-list">
+        <li>仕事・恋愛・友情・お金・将来設計——どれをいちばん重視する？</li>
+        <li>親世代と比べて、何が「当たり前」でなくなっている？</li>
+        <li>自分の時間・エネルギーを何に使うことに「意味」を感じる？</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="timer-bar" id="timer-bar-1">
+    <span class="timer-label">⏱ タイマー</span>
+    <div class="timer-presets">
+      <button class="timer-preset" onclick="setTimerDuration(1,300,this)">5分</button>
+      <button class="timer-preset active" onclick="setTimerDuration(1,600,this)">10分</button>
+      <button class="timer-preset" onclick="setTimerDuration(1,900,this)">15分</button>
+    </div>
+    <span class="timer-digits" id="timer-digits-1">10:00</span>
+    <div class="timer-controls">
+      <button class="btn-timer-start" id="btn-timer-start-1" onclick="toggleTimer(1)">▶ スタート</button>
+      <button class="btn-timer-reset" onclick="resetTimer(1)" title="リセット">↺</button>
+    </div>
+  </div>
+
+  <div class="pane-cols">
+    <!-- Left: reference card + examples -->
+    <div class="pane-left">
+      <div id="trends-context" class="trends-context" style="display:none"></div>
+      <div id="ref-value" class="ref-card value"></div>
+
+      <div id="prev-summary-1" style="display:none"></div>
+
+      <div class="example-box" id="s1-example-box">
+        <div class="example-label" id="s1-example-label">記入例（18〜30歳の場合）</div>
+        <div class="example-qa">
+          <div class="example-q">何が「安心」か</div>
+          <div class="example-a" id="s1-ex-q1">複数の居場所があること。いつでも選択肢があること。ゆるくつながれる友人がいること。</div>
+        </div>
+        <div class="example-qa">
+          <div class="example-q">何が「恥ずかしい・古い」か</div>
+          <div class="example-a" id="s1-ex-q2">一社にしがみつくこと。SNSで自分を作りすぎること。結婚・持ち家を「当然」と思うこと。</div>
+        </div>
+        <div class="example-qa">
+          <div class="example-q">何に使う時間が「豊か」か</div>
+          <div class="example-a" id="s1-ex-q3">好きなことに没頭する時間。友人とだらだらする時間。副業や自分のプロジェクトに使う時間。</div>
+        </div>
+        <div class="example-qa">
+          <div class="example-q">何を「信用」するか</div>
+          <div class="example-a" id="s1-ex-q4">実際に使った人の口コミ。同世代が経験してきたこと。透明性のある情報。</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: input fields -->
+    <div class="pane-right">
+      <div class="key-field field-group">
+        <div class="key-field-hint">▶ グループで決める</div>
+        <label data-age-template="この時代を生きる{age}の価値観キーワード">この時代を生きる人の価値観キーワード</label>
+        <input type="text" id="s2-valuecore" placeholder="例：自由と安定の両立、承認より自己肯定、ゆるいつながり、複数の顔を持つ...">
+      </div>
+      <div class="field-group">
+        <label data-age-template="{age}にとって、何が「安心」か">この環境で生きる人にとって、何が「安心」か</label>
+        <textarea id="s2-q1" rows="3" placeholder="例：複数の居場所があること。いつでも選択肢があること。ゆるくつながれる友人がいること。"></textarea>
+      </div>
+      <div class="field-group">
+        <label data-age-template="{age}にとって、何が「恥ずかしい」「古い」か">何が「恥ずかしい」「古い」と感じられるか</label>
+        <textarea id="s2-q2" rows="3" placeholder="例：一社にしがみつくこと。SNSで自分を作りすぎること。結婚・持ち家を「当然」と思うこと。"></textarea>
+      </div>
+      <div class="field-group">
+        <label data-age-template="{age}にとって、何に時間を使うことが「豊か」か">何に時間を使うことが「豊か」とされるか</label>
+        <textarea id="s2-q3" rows="3" placeholder="例：好きなことに没頭する時間。友人とだらだらする時間。副業や自分のプロジェクト。"></textarea>
+      </div>
+      <div class="field-group">
+        <label data-age-template="{age}は何を信用するか">何を信用するか</label>
+        <textarea id="s2-q4" rows="3" placeholder="例：実際に使った人の口コミ。同世代が経験してきたこと。透明性のある情報。"></textarea>
+      </div>
+    </div>
+  </div>
+
+  <div class="discussion-wrap">
+    <div class="discussion-label">ディスカッションメモ（音声書き起こし）</div>
+    <p class="voice-unsupported" id="s2-unsupported">※ このブラウザは音声認識に対応していません。テキストを直接入力してください。</p>
+    <div class="voice-controls">
+      <button class="btn-record" id="s2-record-btn" onclick="toggleRecord('s2')">
+        <span class="rec-dot"></span>録音開始
+      </button>
+      <span class="record-status" id="s2-record-status"></span>
+    </div>
+    <p class="voice-interim" id="s2-interim"></p>
+    <textarea id="s2-discuss" rows="4"
+      placeholder="録音した内容がここに表示されます。直接編集することもできます。"></textarea>
+  </div>
+
+  <div class="pane-nav">
+    <a href="trends.html" class="btn-nav">← トレンドに戻る</a>
+    <button class="btn-share" onclick="shareNow(this)">↑ 更新を共有</button>
+    <button class="btn-nav primary" onclick="goToStep(2)">次へ →</button>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     Step 2: 日常を書く
+════════════════════════════════════════════ -->
+<div id="pane-2" class="pane hidden">
+  <div class="pane-intro">
+    <div class="step-badge">Step 2 / 3</div>
+    <div class="age-reminder" id="age-reminder-2">18歳〜30歳の未来人</div>
+    <h2 id="s2-heading">未来の18〜30歳の日常を書く</h2>
+    <p class="step-desc" id="s2-desc">
+      Step 1 で決めた価値観を持つ18〜30歳の、ある1日を想像して書いてみましょう。<br>
+      左の参考カードをヒントに、グループでこの若者が生きる生活シーンを自由に決めましょう。
+    </p>
+    <div class="step-hint">
+      <div class="step-hint-label">想像のヒント</div>
+      <ul class="step-hint-list">
+        <li>朝のルーティン、仕事・学業、食事、移動、余暇、就寝——どんな1日の流れ？</li>
+        <li>誰と話し、どこで過ごし、どんなツールや空間を使っている？</li>
+        <li id="s2-hint-age">この年代ならでは——住まい・キャリア・恋愛・友達との関係はどんな形？</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="timer-bar" id="timer-bar-2">
+    <span class="timer-label">⏱ タイマー</span>
+    <div class="timer-presets">
+      <button class="timer-preset" onclick="setTimerDuration(2,600,this)">10分</button>
+      <button class="timer-preset active" onclick="setTimerDuration(2,900,this)">15分</button>
+      <button class="timer-preset" onclick="setTimerDuration(2,1200,this)">20分</button>
+    </div>
+    <span class="timer-digits" id="timer-digits-2">15:00</span>
+    <div class="timer-controls">
+      <button class="btn-timer-start" id="btn-timer-start-2" onclick="toggleTimer(2)">▶ スタート</button>
+      <button class="btn-timer-reset" onclick="resetTimer(2)" title="リセット">↺</button>
+    </div>
+  </div>
+
+  <div class="pane-cols">
+    <!-- Left: reference cards + examples -->
+    <div class="pane-left">
+      <div id="ref-life" class="ref-card life"></div>
+
+      <div id="prev-summary-2" style="display:none"></div>
+
+      <div class="example-box" id="s2-example-box">
+        <div class="example-label" id="s2-example-label">記入例（18〜30歳の場合）</div>
+        <div class="example-qa">
+          <div class="example-q">朝起きて最初に何をするか</div>
+          <div class="example-a" id="s2-ex-d1">スマホでSNSとニュースをざっと確認する。その日の予定をメモアプリで見直す。</div>
+        </div>
+        <div class="example-qa">
+          <div class="example-q">どんな相手と意思決定するか</div>
+          <div class="example-a" id="s2-ex-d2">仲のいい友人1〜2人。信頼できる先輩。オンラインコミュニティの気の合う数人。</div>
+        </div>
+        <div class="example-qa">
+          <div class="example-q">移動・買い物・学習・ケアをどう行うか</div>
+          <div class="example-a" id="s2-ex-d3">移動はシェアサイクルと公共交通。食事はサブスク宅配と自炊を組み合わせ。学習はYouTubeと短期オンラインコース。</div>
+        </div>
+        <div class="example-qa">
+          <div class="example-q">何を煩わしいと思うか</div>
+          <div class="example-a" id="s2-ex-d4">根拠のない同調圧力。一つの生き方への誘導。意味の見えない定型業務。</div>
+        </div>
+        <div class="example-qa">
+          <div class="example-q">カオスによる日常の変化</div>
+          <div class="example-a" id="s2-ex-d5">就職活動がオンライン完結になり、地方にいながら都市の企業を受けるのが当たり前になった。物価高騰で複数の収入源を持つことが普通の選択肢になった。</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: input fields -->
+    <div class="pane-right">
+      <div class="key-field field-group">
+        <div class="key-field-hint">▶ グループで決める</div>
+        <label data-age-template="{age}の未来人が特に注目する生活シーン・領域">この未来人が特に注目する生活シーン・領域</label>
+        <input type="text" id="s3-lifefocus" placeholder="例：キャリアの模索、一人暮らしの生活設計、恋愛・友人との時間の使い方...">
+      </div>
+      <div class="field-group">
+        <label data-age-template="{age}は朝起きて最初に何をするか">朝起きて最初に何をするか</label>
+        <textarea id="s3-d1" rows="3" placeholder="例：スマホでSNSとニュースをざっと確認し、その日の予定をメモアプリで整理する。"></textarea>
+      </div>
+      <div class="field-group">
+        <label data-age-template="{age}はどんな相手と意思決定するか">どんな相手と意思決定するか</label>
+        <textarea id="s3-d2" rows="3" placeholder="例：仲のいい友人1〜2人。信頼できる先輩。オンラインコミュニティ。"></textarea>
+      </div>
+      <div class="field-group">
+        <label data-age-template="{age}は移動・買い物・学習・ケアをどう行うか">移動・買い物・学習・ケアをどう行うか</label>
+        <textarea id="s3-d3" rows="3" placeholder="例：移動はシェアサイクル。食事はサブスク宅配と自炊の組み合わせ。学習はYouTubeと短期オンラインコース。"></textarea>
+      </div>
+      <div class="field-group">
+        <label data-age-template="{age}は何を煩わしいと思うか">何を煩わしいと思うか</label>
+        <textarea id="s3-d4" rows="3" placeholder="例：根拠のない同調圧力。一つの生き方への誘導。意味の見えない定型業務。"></textarea>
+      </div>
+    </div>
+  </div>
+
+  <div class="discussion-wrap">
+    <div class="discussion-label">ディスカッションメモ（音声書き起こし）</div>
+    <p class="voice-unsupported" id="s3-unsupported">※ このブラウザは音声認識に対応していません。テキストを直接入力してください。</p>
+    <div class="voice-controls">
+      <button class="btn-record" id="s3-record-btn" onclick="toggleRecord('s3')">
+        <span class="rec-dot"></span>録音開始
+      </button>
+      <span class="record-status" id="s3-record-status"></span>
+    </div>
+    <p class="voice-interim" id="s3-interim"></p>
+    <textarea id="s3-discuss" rows="4"
+      placeholder="録音した内容がここに表示されます。直接編集することもできます。"></textarea>
+  </div>
+
+  <div class="pane-nav">
+    <button class="btn-nav" onclick="goToStep(1)">← 前へ</button>
+    <button class="btn-share" onclick="shareNow(this)">↑ 更新を共有</button>
+    <button class="btn-nav primary" onclick="goToStep(3)">次へ →</button>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     Step 3: プロフィール化する
+════════════════════════════════════════════ -->
+<div id="pane-3" class="pane hidden">
+  <div class="pane-intro">
+    <div class="step-badge">Step 3 / 3</div>
+    <div class="age-reminder" id="age-reminder-3">18歳〜30歳の未来人</div>
+    <h2>プロフィール化する</h2>
+    <p class="step-desc">
+      未来人をカードにまとめましょう。<br>
+      時代背景はこれまでのカードから自動入力されます。自由に編集してください。
+    </p>
+  </div>
+
+  <div class="timer-bar" id="timer-bar-3">
+    <span class="timer-label">⏱ タイマー</span>
+    <div class="timer-presets">
+      <button class="timer-preset" onclick="setTimerDuration(3,300,this)">5分</button>
+      <button class="timer-preset active" onclick="setTimerDuration(3,600,this)">10分</button>
+      <button class="timer-preset" onclick="setTimerDuration(3,900,this)">15分</button>
+    </div>
+    <span class="timer-digits" id="timer-digits-3">10:00</span>
+    <div class="timer-controls">
+      <button class="btn-timer-start" id="btn-timer-start-3" onclick="toggleTimer(3)">▶ スタート</button>
+      <button class="btn-timer-reset" onclick="resetTimer(3)" title="リセット">↺</button>
+    </div>
+  </div>
+
+  <div class="pane-cols">
+    <!-- Left: example persona -->
+    <div class="pane-left">
+      <div id="prev-summary-3" style="display:none"></div>
+
+      <div class="example-persona">
+        <div class="example-label">記入例</div>
+        <div class="ex-persona-header">
+          <div class="ex-persona-name">清水 あおい</div>
+          <div class="ex-persona-age">26歳</div>
+        </div>
+        <div class="ex-field">
+          <div class="ex-field-label">大事にしている価値観</div>
+          <div class="ex-field-value">自分のペースで生きること。誰かに合わせるより、自分が納得できる選択をすること。</div>
+        </div>
+        <div class="ex-field">
+          <div class="ex-field-label">特徴的な行動</div>
+          <div class="ex-field-value">仕事は複数のプロジェクトを掛け持ち。住まいは1年ごとに見直す。週に一度、何も予定を入れない日をつくる。</div>
+        </div>
+        <div class="ex-field">
+          <div class="ex-field-label">今の人から見ると理解しにくい点</div>
+          <div class="ex-field-value">一つの会社に長く勤めることに特別な価値を感じない。「キャリアの安定」より「選択肢の多さ」を優先している。</div>
+        </div>
+        <div class="ex-field">
+          <div class="ex-field-label">この人向けに必要なサービス</div>
+          <div class="ex-field-value">複数の仕事を一元管理できる請求・契約ツール。短期と長期の中間にあるフレキシブル居住サービス。</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: input form -->
+    <div class="pane-right">
+      <div class="form-row" style="margin-bottom:18px">
+        <div class="field-group" style="margin-bottom:0">
+          <label>名前</label>
+          <input type="text" id="f-name" placeholder="この未来人の名前">
+        </div>
+        <div class="field-group" style="margin-bottom:0">
+          <label>年齢</label>
+          <input type="text" id="f-age" placeholder="例：34歳">
+        </div>
+      </div>
+      <div class="field-group">
+        <label>時代背景</label>
+        <textarea id="f-period" rows="3"></textarea>
+      </div>
+      <div class="field-group">
+        <label>大事にしている価値観</label>
+        <textarea id="f-values" rows="3" placeholder="Step 1 で考えた内容を凝縮して"></textarea>
+      </div>
+      <div class="field-group">
+        <label>特徴的な行動</label>
+        <textarea id="f-behaviors" rows="3" placeholder="Step 2 で描いた日常の中から印象的なものを"></textarea>
+      </div>
+      <div class="field-group">
+        <label>今の人から見ると理解しにくい点</label>
+        <textarea id="f-strange" rows="3" placeholder="例：一つの会社に10年いる意味がわからない。結婚より緩やかなパートナーシップを好む。"></textarea>
+      </div>
+      <div class="field-group">
+        <label>この人向けに必要なサービス</label>
+        <textarea id="f-services" rows="3" placeholder="例：感情状態を可視化するウェアラブル。複数コミュニティを横断する信頼スコア。"></textarea>
+      </div>
+
+      <div class="generate-wrap">
+        <button class="btn-generate" onclick="goToCard()">ペルソナカードを見る →</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="discussion-wrap">
+    <div class="discussion-label">ディスカッションメモ（音声書き起こし）</div>
+    <p class="voice-unsupported" id="s4-unsupported">※ このブラウザは音声認識に対応していません。テキストを直接入力してください。</p>
+    <div class="voice-controls">
+      <button class="btn-record" id="s4-record-btn" onclick="toggleRecord('s4')">
+        <span class="rec-dot"></span>録音開始
+      </button>
+      <span class="record-status" id="s4-record-status"></span>
+    </div>
+    <p class="voice-interim" id="s4-interim"></p>
+    <textarea id="s4-discuss" rows="4"
+      placeholder="録音した内容がここに表示されます。直接編集することもできます。"></textarea>
+  </div>
+
+  <div class="pane-nav">
+    <button class="btn-nav" onclick="goToStep(2)">← 前へ</button>
+    <button class="btn-share" onclick="shareNow(this)">↑ 更新を共有</button>
+    <a href="trends.html" class="btn-nav">最初からやり直す</a>
+  </div>
+</div>
+
+</div><!-- /page-body -->
+
+<script>
+// ── Firebase init ──
+let db = null;
+try {
+  if (typeof FIREBASE_CONFIG !== 'undefined' && FIREBASE_CONFIG.apiKey !== 'YOUR_API_KEY') {
+    if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
+    db = firebase.firestore();
+  }
+} catch(e) { console.warn('Firebase unavailable:', e.message); }
+
+const roomInfo  = JSON.parse(sessionStorage.getItem('pg_room') || 'null');
+const sessionId = Math.random().toString(36).slice(2, 10);
+
+const SOCIAL_DECK = [
+  { title: "AIが合意形成を担う",             desc: "会議や相談ごとで、AIが結論づくりの一部を担っている。" },
+  { title: "AIが個人の代理で交渉する",        desc: "人の代わりに、AIが予定・契約・条件交渉を行う。" },
+  { title: "感情や体調が常時推定される",      desc: "気分や疲労の状態が、日常的に可視化されている。" },
+  { title: "教育が年齢で区切られない",        desc: "何歳でも学び直しや越級が自然になっている。" },
+  { title: "仕事がプロジェクト参加型になる",  desc: "所属よりも、その都度どの活動に加わるかが重視される。" },
+  { title: "評価が学歴より記録で決まる",      desc: "肩書きよりも、実際の行動や貢献のログが見られる。" },
+  // kept for autoPopulatePeriod compatibility
+  { title: "所有より利用権が一般化する",      desc: "持つことより、必要なときに使えることが価値になる。" },
+  { title: "家族が契約で再編される",          desc: "血縁だけでなく、合意によって家族的関係がつくられる。" },
+  { title: "健康管理が予防中心になる",        desc: "病気になってからではなく、日常の調整が重視される。" },
+  { title: "育児や介護を家族外で担う",        desc: "ケアは家庭の中だけでなく、社会全体で分担される。" },
+  { title: "個人データの主導権が本人に戻る",  desc: "自分の情報を誰に、どこまで渡すかを本人が決める。" },
+  { title: "複数コミュニティ所属が前提になる", desc: "一つの会社や地域ではなく、複数の場を行き来して生きる。" },
+];
+
+const drawn = JSON.parse(localStorage.getItem('pg_drawn') || 'null');
+const steps  = JSON.parse(localStorage.getItem('pg_steps')  || '{}');
+
+let currentStep = 1;
+
+window.addEventListener('DOMContentLoaded', () => {
+if (roomInfo) {
+    document.getElementById('room-badge').style.display = 'inline-flex';
+    document.getElementById('room-badge-text').textContent =
+      `ルーム「${roomInfo.code}」— ${roomInfo.name}`;
+    document.querySelector('.page-body').classList.add('in-room');
+  }
+  if (!drawn) {
+    document.querySelector('.page-body').innerHTML = `
+      <div style="text-align:center;padding:80px 20px">
+        <p style="color:var(--text-muted);margin-bottom:20px;font-size:0.9rem">ガチャのデータが見つかりません。</p>
+        <a href="trends.html" style="color:var(--accent);font-size:0.9rem">← トレンドページへ戻る</a>
+      </div>`;
+    return;
+  }
+
+  populateRefCards();
+  applyAgeContent();
+  restoreAll();
+  if (!val('f-period')) autoPopulatePeriod();
+  showStep(1);
+  startSync();
+
+  // フィールドからフォーカスが外れたら自動保存
+  document.querySelectorAll('textarea, input[type="text"]').forEach(el => {
+    el.addEventListener('blur', saveAll);
+  });
+});
+
+/* ── Age group content ── */
+const AGE_CONTENT = {
+  '1': {
+    label: '0歳〜6歳',
+    s1: {
+      heading: '未来の0〜6歳の価値観を考える',
+      desc: '世界を学び始める幼少期——この時代・環境のなかで、彼らはどんな感性と認知を育てるか。<br>左の参考カードをヒントに、グループでこの子どもたちの価値観・感性を自由に決めましょう。',
+      hints: ['遊び・探索・身体感覚——どんな体験が「楽しい」「怖い」を決める？', '保護者・保育者・仲間——誰との関係が世界観を形づくる？', '自分の時間・エネルギーを何に使うことに「意味」を感じる？'],
+      exLabel: '記入例（0〜6歳の場合）',
+      exQ1: '親や保育者とのつながりがあること。遊びに集中できる安全な環境があること。',
+      exQ2: '感情を否定されること。ルールの理由がわからないまま従わされること。',
+      exQ3: '身体を使って遊ぶ時間。誰かと一緒にいる時間。好奇心のままに動ける時間。',
+      exQ4: '目の前にいる大人。感覚で確かめられること。繰り返しの安心感。',
+      ph_valuecore: '例：好奇心・身体感覚・安心の場所、感じることの豊かさ...',
+      ph_q1: '例：親や保育者とのつながりがあること。遊びに集中できる安全な環境があること。',
+      ph_q2: '例：感情を否定されること。ルールの理由がわからないまま従わされること。',
+      ph_q3: '例：身体を使って遊ぶ時間。誰かと一緒にいる時間。好奇心のままに動ける時間。',
+      ph_q4: '例：目の前にいる大人。感覚で確かめられること。繰り返しの安心感。',
+    },
+    s2: {
+      heading: '未来の0〜6歳の日常を書く',
+      desc: 'Step 1 で決めた感性・価値観を持つ0〜6歳の、ある1日を想像して書いてみましょう。<br>左の参考カードをヒントに、グループでこの子どもが生きる生活シーンを自由に決めましょう。',
+      hintAge: 'この年代ならでは——遊び・保育・食事・睡眠・デジタルとの関わりはどんな形？',
+      exLabel: '記入例（0〜6歳の場合）',
+      exD1: '保護者に起こされてゆっくり目覚める。朝ごはんを食べながら映像コンテンツを見る。',
+      exD2: '保護者の判断に従う。自分の「好き・嫌い」の感覚で決める。仲のいい友達に引っ張られる。',
+      exD3: '移動は保護者と一緒に。学習はセンサーやタブレットを使った探索型。ケアは保育施設と家族で分担。',
+      exD4: '待つこと。思い通りにならないこと。切り替えを強制されること。',
+      exD5: '保育施設がオンラインと対面を組み合わせた形になり、家でも「通園」できる日が生まれた。',
+      ph_lifefocus: '例：探索遊び・身体活動・保育環境の変化、デジタルとの最初の接触...',
+      ph_d1: '例：保護者に起こされてゆっくり目覚める。朝ごはんを食べながら映像コンテンツを見る。',
+      ph_d2: '例：保護者の判断に従う。自分の「好き・嫌い」の感覚で決める。',
+      ph_d3: '例：移動は保護者と一緒に。学習はセンサーやタブレットを使った探索型。',
+      ph_d4: '例：待つこと。思い通りにならないこと。切り替えを強制されること。',
+    },
+  },
+  '2': {
+    label: '7歳〜18歳',
+    s1: {
+      heading: '未来の7〜18歳の価値観を考える',
+      desc: '学び、仲間をつくり、自分を形成していく時代——この時代の若者は何を重視するようになるか。<br>左の参考カードをヒントに、グループで「この7〜18歳の価値観」を自由に決めましょう。',
+      hints: ['友達・承認・自己表現——何が「居場所」をつくる？', '学校・家庭・SNS——どのコミュニティが価値観に一番影響する？', '自分の時間・エネルギーを何に使うことに「意味」を感じる？'],
+      exLabel: '記入例（7〜18歳の場合）',
+      exQ1: '仲間に受け入れられること。自分の居場所があること。親以外の信頼できる大人がいること。',
+      exQ2: '時代遅れのやり方を押しつけられること。周りと違うことを責められること。',
+      exQ3: '友達とオンライン・オフラインで過ごす時間。ハマれる趣味に使う時間。',
+      exQ4: '同世代の声。自分で体験したこと。フォロワー数より共感できるリアルな声。',
+      ph_valuecore: '例：承認・居場所・自分らしさ、競争より共感、推し活や没頭できる何か...',
+      ph_q1: '例：仲間に受け入れられること。自分の居場所があること。親以外の信頼できる大人がいること。',
+      ph_q2: '例：時代遅れのやり方を押しつけられること。周りと違うことを責められること。',
+      ph_q3: '例：友達とオンライン・オフラインで過ごす時間。ハマれる趣味に使う時間。',
+      ph_q4: '例：同世代の声。自分で体験したこと。フォロワー数より共感できるリアルな声。',
+    },
+    s2: {
+      heading: '未来の7〜18歳の日常を書く',
+      desc: 'Step 1 で決めた価値観を持つ7〜18歳の、ある1日を想像して書いてみましょう。<br>左の参考カードをヒントに、グループでこの若者が生きる生活シーンを自由に決めましょう。',
+      hintAge: 'この年代ならでは——学校・部活・友人関係・SNS・家庭との関係はどんな形？',
+      exLabel: '記入例（7〜18歳の場合）',
+      exD1: 'スマホで友達とのメッセージを確認する。推しのコンテンツをチェックしてから学校へ向かう。',
+      exD2: '仲のいい友達数人。ネットで調べた同世代の声。自分の「なんとなく」の感覚。',
+      exD3: '移動は自転車・電車。買い物はオンライン中心。学習はオンライン教材と学校の授業を組み合わせ。',
+      exD4: '大人からの一方的な命令。意味のない校則や慣習。自分の時間が一方的に奪われること。',
+      exD5: '学校の授業が一部オンライン選択制になり、苦手な教科を自分のペースで学べるようになった。',
+      ph_lifefocus: '例：学校生活・友人関係・趣味・SNSとの付き合い方...',
+      ph_d1: '例：スマホで友達とのメッセージを確認する。推しのコンテンツをチェックしてから学校へ。',
+      ph_d2: '例：仲のいい友達数人。ネットで調べた同世代の声。自分の「なんとなく」の感覚。',
+      ph_d3: '例：移動は自転車・電車。買い物はオンライン中心。学習はオンライン教材と学校の授業。',
+      ph_d4: '例：大人からの一方的な命令。意味のない校則や慣習。自分の時間が奪われること。',
+    },
+  },
+  '3': {
+    label: '18歳〜30歳',
+    s1: {
+      heading: '未来の18〜30歳の価値観を考える',
+      desc: '社会に出たばかり、またはキャリアを模索している世代——この時代・環境のなかで、彼らは何を重視するようになるか。<br>左の参考カードをヒントに、グループで「この18〜30歳の価値観」を自由に決めましょう。',
+      hints: ['仕事・恋愛・友情・お金・将来設計——どれをいちばん重視する？', '親世代と比べて、何が「当たり前」でなくなっている？', '自分の時間・エネルギーを何に使うことに「意味」を感じる？'],
+      exLabel: '記入例（18〜30歳の場合）',
+      exQ1: '複数の居場所があること。いつでも選択肢があること。ゆるくつながれる友人がいること。',
+      exQ2: '一社にしがみつくこと。SNSで自分を作りすぎること。結婚・持ち家を「当然」と思うこと。',
+      exQ3: '好きなことに没頭する時間。友人とだらだらする時間。副業や自分のプロジェクトに使う時間。',
+      exQ4: '実際に使った人の口コミ。同世代が経験してきたこと。透明性のある情報。',
+      ph_valuecore: '例：自由と安定の両立、承認より自己肯定、ゆるいつながり、複数の顔を持つ...',
+      ph_q1: '例：複数の居場所があること。いつでも選択肢があること。ゆるくつながれる友人がいること。',
+      ph_q2: '例：一社にしがみつくこと。SNSで自分を作りすぎること。結婚・持ち家を「当然」と思うこと。',
+      ph_q3: '例：好きなことに没頭する時間。友人とだらだらする時間。副業や自分のプロジェクト。',
+      ph_q4: '例：実際に使った人の口コミ。同世代が経験してきたこと。透明性のある情報。',
+    },
+    s2: {
+      heading: '未来の18〜30歳の日常を書く',
+      desc: 'Step 1 で決めた価値観を持つ18〜30歳の、ある1日を想像して書いてみましょう。<br>左の参考カードをヒントに、グループでこの若者が生きる生活シーンを自由に決めましょう。',
+      hintAge: 'この年代ならでは——住まい・キャリア・恋愛・友達との関係はどんな形？',
+      exLabel: '記入例（18〜30歳の場合）',
+      exD1: 'スマホでSNSとニュースをざっと確認する。その日の予定をメモアプリで見直す。',
+      exD2: '仲のいい友人1〜2人。信頼できる先輩。オンラインコミュニティの気の合う数人。',
+      exD3: '移動はシェアサイクルと公共交通。食事はサブスク宅配と自炊を組み合わせ。学習はYouTubeと短期オンラインコース。',
+      exD4: '根拠のない同調圧力。一つの生き方への誘導。意味の見えない定型業務。',
+      exD5: '就職活動がオンライン完結になり、地方にいながら都市の企業を受けるのが当たり前になった。物価高騰で複数の収入源を持つことが普通の選択肢になった。',
+      ph_lifefocus: '例：キャリアの模索、一人暮らしの生活設計、恋愛・友人との時間の使い方...',
+      ph_d1: '例：スマホでSNSとニュースをざっと確認し、その日の予定をメモアプリで整理する。',
+      ph_d2: '例：仲のいい友人1〜2人。信頼できる先輩。オンラインコミュニティ。',
+      ph_d3: '例：移動はシェアサイクル。食事はサブスク宅配と自炊の組み合わせ。学習はYouTubeと短期オンラインコース。',
+      ph_d4: '例：根拠のない同調圧力。一つの生き方への誘導。意味の見えない定型業務。',
+    },
+  },
+  '4': {
+    label: '30歳〜50歳',
+    s1: {
+      heading: '未来の30〜50歳の価値観を考える',
+      desc: '家族・仕事・コミュニティで中心的な役割を担う時代——この時代・環境のなかで、彼らは何を重視するか。<br>左の参考カードをヒントに、グループで「この30〜50歳の価値観」を自由に決めましょう。',
+      hints: ['家族・仕事・コミュニティ——どの責任を最も重視する？', '上の世代と下の世代の間で、何が「当たり前」でなくなっている？', '自分の時間・エネルギーを何に使うことに「意味」を感じる？'],
+      exLabel: '記入例（30〜50歳の場合）',
+      exQ1: '家族の健康とつながり。仕事の継続性と役割。信頼できるコミュニティがあること。',
+      exQ2: '変化に対応できないこと。会社や肩書きへの固執。育児・介護を一人で抱えること。',
+      exQ3: '家族と過ごす時間。自分の成長に使う時間。地域やコミュニティへの貢献。',
+      exQ4: '実績と経験を持つ人。長期にわたる信頼関係。継続できる仕組みやサービス。',
+      ph_valuecore: '例：家族との時間・安定した役割・コミュニティへの貢献、信頼の積み重ね...',
+      ph_q1: '例：家族の健康とつながり。仕事の継続性と役割。信頼できるコミュニティがあること。',
+      ph_q2: '例：変化に対応できないこと。会社や肩書きへの固執。育児・介護を一人で抱えること。',
+      ph_q3: '例：家族と過ごす時間。自分の成長に使う時間。地域やコミュニティへの貢献。',
+      ph_q4: '例：実績と経験を持つ人。長期にわたる信頼関係。継続できる仕組みやサービス。',
+    },
+    s2: {
+      heading: '未来の30〜50歳の日常を書く',
+      desc: 'Step 1 で決めた価値観を持つ30〜50歳の、ある1日を想像して書いてみましょう。<br>左の参考カードをヒントに、グループでこの世代が生きる生活シーンを自由に決めましょう。',
+      hintAge: 'この年代ならでは——育児・介護・仕事・地域コミュニティとの関わりはどんな形？',
+      exLabel: '記入例（30〜50歳の場合）',
+      exD1: '家族を起こし朝食の準備をしながら、仕事のスケジュールと子どもの予定を同時に確認する。',
+      exD2: 'パートナーと話し合う。信頼できる同僚や友人。過去の経験をもとに最終的に自分で判断。',
+      exD3: '移動は車や公共交通。買い物は定期配送＋実店舗を組み合わせ。介護はオンラインサービスを活用。',
+      exD4: '家事・育児・仕事の板挟み。旧来の組織の非効率さ。変化の速さについていくプレッシャー。',
+      exD5: '在宅勤務が定着し、子どもの学校行事に出やすくなった反面、仕事と家庭の境界が曖昧になった。',
+      ph_lifefocus: '例：育児・介護・キャリアの両立、地域コミュニティへの関わり方...',
+      ph_d1: '例：家族を起こし朝食の準備。仕事のスケジュールと子どもの予定を同時に確認する。',
+      ph_d2: '例：パートナーと話し合う。信頼できる同僚や友人。過去の経験から判断する。',
+      ph_d3: '例：移動は車や公共交通。買い物は定期配送＋実店舗。介護はオンラインサービスを活用。',
+      ph_d4: '例：家事・育児・仕事の板挟み。旧来の組織の非効率さ。変化の速さについていくこと。',
+    },
+  },
+  '5': {
+    label: '50歳〜70歳',
+    s1: {
+      heading: '未来の50〜70歳の価値観を考える',
+      desc: '役割の再定義と新たな挑戦の時代——この時代・環境のなかで、彼らは何を重視するようになるか。<br>左の参考カードをヒントに、グループで「この50〜70歳の価値観」を自由に決めましょう。',
+      hints: ['仕事・健康・社会参加——老いとどう向き合い、何を残すか？', '下の世代に何を伝え、上の世代から何を引き継ぐか？', '自分の時間・エネルギーを何に使うことに「意味」を感じる？'],
+      exLabel: '記入例（50〜70歳の場合）',
+      exQ1: '健康であること。社会とのつながりが続くこと。経済的な見通しが立つこと。',
+      exQ2: '「もう歳だから」と決めつけられること。老いを隠すよう求められること。若い世代に任せきりにされること。',
+      exQ3: '自分の知恵や経験を活かす時間。身体を動かす時間。後進の育成や地域貢献に使う時間。',
+      exQ4: '長年の実績を持つ人。本質を見抜く経験のある人。継続的に付き合えるもの・こと。',
+      ph_valuecore: '例：経験の活用・健康・社会とのつながり、役割の再発見、後進への継承...',
+      ph_q1: '例：健康であること。社会とのつながりが続くこと。経済的な見通しが立つこと。',
+      ph_q2: '例：「もう歳だから」と決めつけられること。老いを隠すよう求められること。',
+      ph_q3: '例：自分の知恵や経験を活かす時間。身体を動かす時間。後進の育成に使う時間。',
+      ph_q4: '例：長年の実績を持つ人。本質を見抜く経験のある人。継続的に付き合えるもの。',
+    },
+    s2: {
+      heading: '未来の50〜70歳の日常を書く',
+      desc: 'Step 1 で決めた価値観を持つ50〜70歳の、ある1日を想像して書いてみましょう。<br>左の参考カードをヒントに、グループでこの世代が生きる生活シーンを自由に決めましょう。',
+      hintAge: 'この年代ならでは——仕事の引き継ぎ・健康管理・趣味・地域活動はどんな形？',
+      exLabel: '記入例（50〜70歳の場合）',
+      exD1: '起き抜けに体の状態をウェアラブルで確認する。軽い運動か散歩をしてから朝食。',
+      exD2: '信頼できる仲間と相談する。長年の経験をもとに自分で判断。家族の意見も聞く。',
+      exD3: '移動は車と公共交通を使い分け。買い物はネット中心に。学習は趣味や再就職向けのオンライン講座。',
+      exD4: 'デジタル手続きの複雑さ。「もう歳だから」という周囲の決めつけ。将来への漠然とした不安。',
+      exD5: '定年の概念がなくなり、60代でも現役として働く選択肢が当たり前になった。一方で健康管理の自己責任も強まった。',
+      ph_lifefocus: '例：仕事・健康・趣味・地域活動のバランス、経験を活かした新しい役割...',
+      ph_d1: '例：起き抜けに体の状態をウェアラブルで確認する。軽い運動か散歩をしてから朝食。',
+      ph_d2: '例：信頼できる仲間と相談する。長年の経験をもとに自分で判断する。',
+      ph_d3: '例：移動は車と公共交通。買い物はネット中心。学習は趣味や再就職向けのオンライン講座。',
+      ph_d4: '例：デジタル手続きの複雑さ。「もう歳だから」という決めつけ。将来への漠然とした不安。',
+    },
+  },
+  '6': {
+    label: '70歳〜',
+    s1: {
+      heading: '未来の70歳以上の価値観を考える',
+      desc: '人生の完成期——この時代・環境のなかで、彼らは何を大切にし、どのように残りの時間を生きるか。<br>左の参考カードをヒントに、グループで「この70歳以上の価値観」を自由に決めましょう。',
+      hints: ['身体・死・記憶——人生の終わりに向けて何を大切にする？', '家族・地域・次の世代——何を残し、誰に伝えるか？', '自分の時間・エネルギーを何に使うことに「意味」を感じる？'],
+      exLabel: '記入例（70歳〜の場合）',
+      exQ1: '身近な人とのつながり。自分らしく過ごせる環境。痛みや不安なく生きられること。',
+      exQ2: '周囲に迷惑をかけること。自分の意志を示せないこと。時代に取り残されていくこと。',
+      exQ3: '孫や次の世代と過ごす時間。長年の趣味に使う時間。記憶と向き合い整理する時間。',
+      exQ4: '長く共にいた人。家族や地域コミュニティ。自分の直感と経験から来る判断。',
+      ph_valuecore: '例：つながり・残すもの・自分らしさ、穏やかさ・感謝、死生観...',
+      ph_q1: '例：身近な人とのつながり。自分らしく過ごせる環境。痛みや不安なく生きられること。',
+      ph_q2: '例：周囲に迷惑をかけること。自分の意志を示せないこと。時代に取り残されていくこと。',
+      ph_q3: '例：孫や次の世代と過ごす時間。長年の趣味に使う時間。記憶と向き合い整理する時間。',
+      ph_q4: '例：長く共にいた人。家族や地域コミュニティ。自分の直感と経験から来る判断。',
+    },
+    s2: {
+      heading: '未来の70歳以上の日常を書く',
+      desc: 'Step 1 で決めた価値観を持つ70歳以上の、ある1日を想像して書いてみましょう。<br>左の参考カードをヒントに、グループでこの世代が生きる生活シーンを自由に決めましょう。',
+      hintAge: 'この年代ならでは——身体の変化・家族・コミュニティ・生きがいはどんな形？',
+      exLabel: '記入例（70歳〜の場合）',
+      exD1: 'ゆっくり起き上がり、体の様子を確かめる。窓を開けて外の空気を感じてから朝食。',
+      exD2: '家族や長年の友人と相談する。自分の直感と経験を大切にして決める。',
+      exD3: '移動は福祉交通や家族の支援。買い物はデリバリーや訪問サービスを活用。身体ケアはウェアラブルで管理。',
+      exD4: '体が思い通りに動かないこと。家族に迷惑をかけていると感じること。新しいデジタル操作を覚えること。',
+      exD5: '医療が遠隔診療中心になり、自宅にいながら専門医に相談できるようになった。終末期の選択肢も多様化した。',
+      ph_lifefocus: '例：健康維持・家族との時間・趣味・社会とのつながりの保ち方...',
+      ph_d1: '例：ゆっくり起き上がり、体の様子を確かめる。窓を開けて外の空気を感じてから朝食。',
+      ph_d2: '例：家族や長年の友人と相談する。自分の直感と経験を大切にして決める。',
+      ph_d3: '例：移動は福祉交通や家族の支援。買い物はデリバリーや訪問サービスを活用。',
+      ph_d4: '例：体が思い通りに動かないこと。家族に迷惑をかけていると感じること。',
+    },
+  },
+};
+
+function applyAgeContent() {
+  const ageKey = sessionStorage.getItem('ageGroup') || '3';
+  const c = AGE_CONTENT[ageKey] || AGE_CONTENT['3'];
+
+  // Step 1
+  const s1 = c.s1;
+  setText('s1-heading', s1.heading);
+  setHTML('s1-desc', s1.desc);
+  const hintList = document.getElementById('s1-hint-list');
+  if (hintList) {
+    hintList.innerHTML = s1.hints.map(h => `<li>${h}</li>`).join('');
+  }
+  setText('s1-example-label', s1.exLabel);
+  setText('s1-ex-q1', s1.exQ1);
+  setText('s1-ex-q2', s1.exQ2);
+  setText('s1-ex-q3', s1.exQ3);
+  setText('s1-ex-q4', s1.exQ4);
+  setPlaceholder('s2-valuecore', s1.ph_valuecore);
+  setPlaceholder('s2-q1', s1.ph_q1);
+  setPlaceholder('s2-q2', s1.ph_q2);
+  setPlaceholder('s2-q3', s1.ph_q3);
+  setPlaceholder('s2-q4', s1.ph_q4);
+
+  // Step 2
+  const s2 = c.s2;
+  setText('s2-heading', s2.heading);
+  setHTML('s2-desc', s2.desc);
+  setText('s2-hint-age', s2.hintAge);
+  setText('s2-example-label', s2.exLabel);
+  setText('s2-ex-d1', s2.exD1);
+  setText('s2-ex-d2', s2.exD2);
+  setText('s2-ex-d3', s2.exD3);
+  setText('s2-ex-d4', s2.exD4);
+  setText('s2-ex-d5', s2.exD5);
+  setPlaceholder('s3-lifefocus', s2.ph_lifefocus);
+  setPlaceholder('s3-d1', s2.ph_d1);
+  setPlaceholder('s3-d2', s2.ph_d2);
+  setPlaceholder('s3-d3', s2.ph_d3);
+  setPlaceholder('s3-d4', s2.ph_d4);
+
+  // Age reminder chips
+  const reminderText = c.label + ' の未来人';
+  ['age-reminder-1', 'age-reminder-2', 'age-reminder-3'].forEach(id => setText(id, reminderText));
+
+  // Age-templated labels
+  document.querySelectorAll('[data-age-template]').forEach(el => {
+    el.textContent = el.dataset.ageTemplate.replace('{age}', c.label);
+  });
+}
+
+function setText(id, text) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = text;
+}
+function setHTML(id, html) {
+  const el = document.getElementById(id);
+  if (el) el.innerHTML = html;
+}
+function setPlaceholder(id, text) {
+  const el = document.getElementById(id);
+  if (el) el.placeholder = text;
+}
+
+/* ── Populate reference cards ── */
+function populateRefCards() {
+  renderTrendsContext();
+  setCard('driver-social', drawn.social, 'social', '社会変化');
+  setCard('driver-chaos',  drawn.chaos,  'chaos',  '時代テクスチャー');
+  setCard('ref-value',     drawn.value,  'value',  '価値観');
+  setCard('ref-life',      drawn.life,   'life',   '生活領域');
+}
+
+
+/* ── Render trends context block (Step 1) ── */
+function renderTrendsContext() {
+  try {
+    const el = document.getElementById('trends-context');
+    if (!el) return;
+    const raw = localStorage.getItem('pg_trends');
+    if (!raw) return;
+    const trends = JSON.parse(raw);
+    if (!trends || !trends.mega || !trends.mid) return;
+
+    const items = [
+      { type: 'mega', label: 'メガトレンド', data: trends.mega },
+      { type: 'mid',  label: 'ミドルトレンド', data: trends.mid },
+    ];
+
+    el.innerHTML = `<div class="trends-context-label">選んだトレンド（背景文脈）</div>` +
+      items.map(({ type, label, data }) => `
+        <div class="trend-ctx-item ${type}">
+          <div class="trend-ctx-type">${label}</div>
+          <div class="trend-ctx-title">${esc(data.title)}</div>
+          <div class="trend-ctx-desc">${esc(data.desc)}</div>
+          ${data.principle ? '<div class="trend-ctx-principle">' + esc(data.principle) + '</div>' : ''}
+        </div>`).join('');
+
+    el.style.display = 'block';
+  } catch(e) {}
+}
+
+function setCard(id, card, cls, label) {
+  const el = document.getElementById(id);
+  if (!el || !card) return;
+  el.innerHTML = `
+    <div class="ref-example-badge">参考例</div>
+    <div class="ref-card-cat">${label}</div>
+    <div class="ref-card-title">${esc(card.title)}</div>
+    <div class="ref-card-desc">${esc(card.desc)}</div>`;
+}
+
+/* ── Extra draw (Step 1) ── */
+function drawExtra() {
+  if (extraCount >= 2) return;
+  const exclude = [drawn.social.index, ...extraDrivers.map(d => d.index)];
+  let i;
+  do { i = Math.floor(Math.random() * SOCIAL_DECK.length); } while (exclude.includes(i));
+  const card = { ...SOCIAL_DECK[i], index: i };
+  extraDrivers.push(card);
+  extraCount++;
+  appendExtraCard(card, true);
+  if (extraCount >= 2) document.getElementById('btn-extra').disabled = true;
+  saveAll();
+}
+
+function appendExtraCard(card, animate) {
+  const el = document.createElement('div');
+  el.className = 'ref-card social' + (animate ? ' extra-card-appear' : '');
+  el.innerHTML = `
+    <div class="ref-card-cat">社会変化（追加）</div>
+    <div class="ref-card-title">${esc(card.title)}</div>
+    <div class="ref-card-desc">${esc(card.desc)}</div>`;
+  document.getElementById('extra-cards').appendChild(el);
+}
+
+/* ── Auto-populate Step 3 period ── */
+function autoPopulatePeriod() {
+  const trends = JSON.parse(localStorage.getItem('pg_trends') || 'null');
+  const valuecore = val('s2-valuecore') || drawn.value.title;
+  let text = '';
+  if (trends) {
+    text += `【メガトレンド】${trends.mega.title}が進む時代。`;
+    text += `【ミドルトレンド】${trends.mid.title}が普及しつつある。\n`;
+  }
+  text += `${drawn.social.title}が当たり前になり、${drawn.chaos.title}という状況の中で、`;
+  text += `人々の「${valuecore}」への意識が高まっている。`;
+  document.getElementById('f-period').value = text;
+}
+
+/* ── Previous step summary ── */
+function updatePrevSummary(n) {
+  if (n < 2) return;
+
+  function makeItem(q, a) {
+    if (!a) return '';
+    return `<div class="prev-summary-item">
+      <div class="prev-summary-q">${esc(q)}</div>
+      <div class="prev-summary-a">${esc(a)}</div>
+    </div>`;
+  }
+
+  let html = '';
+
+  // Step 1 — 価値観の転換 (for steps 2 and 3)
+  const items1 = [
+    makeItem('価値観キーワード', val('s2-valuecore')),
+    makeItem('何が「安心」か', val('s2-q1')),
+    makeItem('何が「恥ずかしい・古い」か', val('s2-q2')),
+    makeItem('「豊か」な時間の使い方', val('s2-q3')),
+    makeItem('何を「信用」するか', val('s2-q4')),
+  ].join('');
+  if (items1) {
+    html += `<div class="prev-summary-section">
+      <div class="prev-summary-step-label">Step 1 — 価値観の転換</div>
+      ${items1}
+    </div>`;
+  }
+
+  // Step 2 — 日常 (for step 3)
+  if (n >= 3) {
+    const items2 = [
+      makeItem('生活シーンキーワード', val('s3-lifefocus')),
+      makeItem('朝起きて最初に何をするか', val('s3-d1')),
+      makeItem('どんな相手と意思決定するか', val('s3-d2')),
+      makeItem('移動・買い物・学習・ケア', val('s3-d3')),
+      makeItem('何を煩わしいと思うか', val('s3-d4')),
+    ].join('');
+    if (items2) {
+      html += `<div class="prev-summary-section">
+        <div class="prev-summary-step-label">Step 2 — 日常を書く</div>
+        ${items2}
+      </div>`;
+    }
+  }
+
+  const container = document.getElementById(`prev-summary-${n}`);
+  if (!container) return;
+  if (html) {
+    container.innerHTML = `<div class="prev-summary-card">
+      <div class="prev-summary-title">前のステップで書いた内容</div>
+      ${html}
+    </div>`;
+    container.style.display = 'block';
+  } else {
+    container.style.display = 'none';
+  }
+}
+
+/* ── Step navigation ── */
+function showStep(n) {
+  currentStep = n;
+  for (let i = 1; i <= 3; i++) {
+    document.getElementById(`pane-${i}`).classList.toggle('hidden', i !== n);
+    const ps = document.getElementById(`ps-${i}`);
+    const pd = document.getElementById(`pd-${i}`);
+    if (i < n) {
+      ps.className = 'prog-step done';
+      pd.className = 'prog-dot done';
+    } else if (i === n) {
+      ps.className = 'prog-step active';
+      pd.className = 'prog-dot active';
+    } else {
+      ps.className = 'prog-step';
+      pd.className = 'prog-dot';
+    }
+    if (i < 3) {
+      document.getElementById(`pc-${i}`).classList.toggle('done', i < n);
+    }
+  }
+  updatePrevSummary(n);
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function goToStep(n) {
+  saveAll();
+  showStep(n);
+}
+
+/* ── Persist data ── */
+function saveAll() {
+  steps.step2 = { valuecore: val('s2-valuecore'), q1: val('s2-q1'), q2: val('s2-q2'), q3: val('s2-q3'), q4: val('s2-q4'), discuss: val('s2-discuss') };
+  steps.step3 = { lifefocus: val('s3-lifefocus'), d1: val('s3-d1'), d2: val('s3-d2'), d3: val('s3-d3'), d4: val('s3-d4'), discuss: val('s3-discuss') };
+  steps.step4 = {
+    name: val('f-name'), age: val('f-age'), period: val('f-period'),
+    values: val('f-values'), behaviors: val('f-behaviors'),
+    strange: val('f-strange'), services: val('f-services'),
+    discuss: val('s4-discuss'),
+  };
+  localStorage.setItem('pg_steps', JSON.stringify(steps));
+  // Firebase sync
+  if (db && roomInfo) {
+    db.collection('rooms').doc(roomInfo.code)
+      .collection('groups').doc(roomInfo.name)
+      .set({ steps, updatedAt: firebase.firestore.FieldValue.serverTimestamp(), updatedBy: sessionId }, { merge: true })
+      .catch(e => console.warn('Firebase save:', e.message));
+  }
+}
+
+/* ── Share now ── */
+function shareNow(btn) {
+  saveAll();
+  // 全ての共有ボタンを一時的に完了状態にする
+  document.querySelectorAll('.btn-share').forEach(b => {
+    b.classList.add('sent');
+    b.textContent = '✓ 共有しました';
+  });
+  setTimeout(() => {
+    document.querySelectorAll('.btn-share').forEach(b => {
+      b.classList.remove('sent');
+      b.textContent = '↑ 更新を共有';
+    });
+  }, 2000);
+}
+
+/* ── Real-time sync ── */
+function startSync() {
+  if (!db || !roomInfo) return;
+  db.collection('rooms').doc(roomInfo.code)
+    .collection('groups').doc(roomInfo.name)
+    .onSnapshot(snap => {
+      const data = snap.data();
+      if (!data || data.updatedBy === sessionId) return; // 自分の書き込みを無視
+      if (data.steps)   applyRemoteSteps(data.steps);
+      if (data.compare) applyRemoteCompare(data.compare);
+    }, err => console.warn('Sync error:', err.message));
+
+  const dot = document.getElementById('sync-dot');
+  if (dot) dot.style.display = 'block';
+}
+
+function applyRemoteSteps(r) {
+  // ローカルオブジェクトとlocalStorageを更新
+  Object.assign(steps, r);
+  localStorage.setItem('pg_steps', JSON.stringify(steps));
+
+  // フォーカス中のフィールドを除いて反映
+  const sync = (id, v) => {
+    const el = document.getElementById(id);
+    if (el && el !== document.activeElement) el.value = v || '';
+  };
+  if (r.step2) {
+    sync('s2-valuecore', r.step2.valuecore);
+    sync('s2-q1', r.step2.q1); sync('s2-q2', r.step2.q2);
+    sync('s2-q3', r.step2.q3); sync('s2-q4', r.step2.q4);
+    sync('s2-discuss', r.step2.discuss);
+  }
+  if (r.step3) {
+    sync('s3-lifefocus', r.step3.lifefocus);
+    sync('s3-d1', r.step3.d1); sync('s3-d2', r.step3.d2);
+    sync('s3-d3', r.step3.d3); sync('s3-d4', r.step3.d4);
+    sync('s3-discuss', r.step3.discuss);
+  }
+  if (r.step4) {
+    sync('f-name', r.step4.name);         sync('f-age', r.step4.age);
+    sync('f-period', r.step4.period);     sync('f-values', r.step4.values);
+    sync('f-behaviors', r.step4.behaviors); sync('f-strange', r.step4.strange);
+    sync('f-services', r.step4.services); sync('s4-discuss', r.step4.discuss);
+  }
+  updatePrevSummary(currentStep);
+}
+
+function applyRemoteCompare() { /* compare.html 側で処理 */ }
+
+function restoreAll() {
+  if (steps.step2) {
+    set('s2-valuecore', steps.step2.valuecore);
+    set('s2-q1', steps.step2.q1); set('s2-q2', steps.step2.q2);
+    set('s2-q3', steps.step2.q3); set('s2-q4', steps.step2.q4);
+    set('s2-discuss', steps.step2.discuss);
+  }
+  if (steps.step3) {
+    set('s3-lifefocus', steps.step3.lifefocus);
+    set('s3-d1', steps.step3.d1); set('s3-d2', steps.step3.d2);
+    set('s3-d3', steps.step3.d3); set('s3-d4', steps.step3.d4);
+    set('s3-discuss', steps.step3.discuss);
+  }
+  if (steps.step4) {
+    set('f-name', steps.step4.name);   set('f-age', steps.step4.age);
+    set('f-period', steps.step4.period); set('f-values', steps.step4.values);
+    set('f-behaviors', steps.step4.behaviors); set('f-strange', steps.step4.strange);
+    set('f-services', steps.step4.services); set('s4-discuss', steps.step4.discuss);
+  }
+}
+
+/* ── Navigate to persona card page ── */
+function goToCard() {
+  saveAll();
+  const proceed = () => { location.href = 'persona-card.html'; };
+  if (db && roomInfo) {
+    db.collection('rooms').doc(roomInfo.code)
+      .collection('groups').doc(roomInfo.name)
+      .set({
+        steps,
+        groupName: roomInfo.name,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      }, { merge: true })
+      .then(proceed).catch(proceed);
+  } else {
+    proceed();
+  }
+}
+
+/* ── Voice transcription ── */
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+const recorders = {};
+
+window.addEventListener('DOMContentLoaded', () => {
+  if (!SpeechRecognition) {
+    ['s2','s3','s4'].forEach(id => {
+      const el = document.getElementById(`${id}-unsupported`);
+      const btn = document.getElementById(`${id}-record-btn`);
+      if (el) el.style.display = 'block';
+      if (btn) btn.style.display = 'none';
+    });
+  }
+}, { once: false });  // runs after the existing DOMContentLoaded
+
+function toggleRecord(stepId) {
+  if (recorders[stepId]) {
+    stopRecord(stepId);
+  } else {
+    startRecord(stepId);
+  }
+}
+
+function startRecord(stepId) {
+  if (!SpeechRecognition) return;
+  const rec = new SpeechRecognition();
+  rec.lang = 'ja-JP';
+  rec.continuous = true;
+  rec.interimResults = true;
+
+  const textarea = document.getElementById(`${stepId}-discuss`);
+  const interim  = document.getElementById(`${stepId}-interim`);
+  let finalText  = textarea.value;
+
+  rec.onresult = (e) => {
+    let interimText = '';
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      if (e.results[i].isFinal) {
+        finalText += e.results[i][0].transcript;
+        textarea.value = finalText;
+      } else {
+        interimText += e.results[i][0].transcript;
+      }
+    }
+    if (interim) interim.textContent = interimText;
+  };
+
+  rec.onerror = (e) => {
+    console.warn('Speech error:', e.error);
+    stopRecord(stepId);
+  };
+
+  rec.onend = () => {
+    // 録音継続中なら自動再起動（ブラウザが勝手に止める対策）
+    if (recorders[stepId]) {
+      try { rec.start(); } catch(_) { stopRecord(stepId); }
+    }
+  };
+
+  rec.start();
+  recorders[stepId] = rec;
+  setRecordUI(stepId, true);
+}
+
+function stopRecord(stepId) {
+  if (recorders[stepId]) {
+    recorders[stepId].onend = null;
+    recorders[stepId].stop();
+    recorders[stepId] = null;
+  }
+  const interim = document.getElementById(`${stepId}-interim`);
+  if (interim) interim.textContent = '';
+  setRecordUI(stepId, false);
+}
+
+function setRecordUI(stepId, isRecording) {
+  const btn    = document.getElementById(`${stepId}-record-btn`);
+  const status = document.getElementById(`${stepId}-record-status`);
+  if (btn) {
+    btn.classList.toggle('recording', isRecording);
+    btn.querySelector('.rec-dot').style.display = 'block';
+    btn.childNodes[btn.childNodes.length - 1].textContent = isRecording ? '録音停止' : '録音開始';
+  }
+  if (status) {
+    status.textContent = isRecording ? '録音中...' : '';
+    status.classList.toggle('active', isRecording);
+  }
+}
+
+/* ── Timer ── */
+const timers = {
+  1: { total: 600,  seconds: 600,  interval: null },
+  2: { total: 900,  seconds: 900,  interval: null },
+  3: { total: 600,  seconds: 600,  interval: null },
+};
+
+function setTimerDuration(id, secs, btn) {
+  clearInterval(timers[id].interval);
+  timers[id].interval = null;
+  timers[id].total   = secs;
+  timers[id].seconds = secs;
+  updateTimerDisplay(id);
+  updateTimerStartBtn(id, false);
+  document.querySelectorAll(`#timer-bar-${id} .timer-preset`).forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+}
+
+function toggleTimer(id) {
+  if (timers[id].interval) {
+    clearInterval(timers[id].interval);
+    timers[id].interval = null;
+    updateTimerStartBtn(id, false);
+  } else {
+    if (timers[id].seconds <= 0) { timers[id].seconds = timers[id].total; }
+    timers[id].interval = setInterval(() => tickTimer(id), 1000);
+    updateTimerStartBtn(id, true);
+  }
+}
+
+function tickTimer(id) {
+  timers[id].seconds = Math.max(0, timers[id].seconds - 1);
+  updateTimerDisplay(id);
+  if (timers[id].seconds <= 0) {
+    clearInterval(timers[id].interval);
+    timers[id].interval = null;
+    updateTimerStartBtn(id, false);
+    onTimerExpired(id);
+  }
+}
+
+function resetTimer(id) {
+  clearInterval(timers[id].interval);
+  timers[id].interval = null;
+  timers[id].seconds  = timers[id].total;
+  updateTimerDisplay(id);
+  updateTimerStartBtn(id, false);
+  const bar = document.getElementById(`timer-bar-${id}`);
+  if (bar) bar.classList.remove('expired-flash');
+}
+
+function updateTimerDisplay(id) {
+  const el = document.getElementById(`timer-digits-${id}`);
+  if (!el) return;
+  const s = timers[id].seconds;
+  const mm = String(Math.floor(s / 60)).padStart(2, '0');
+  const ss = String(s % 60).padStart(2, '0');
+  el.textContent = `${mm}:${ss}`;
+  el.className = 'timer-digits' + (s <= 0 ? ' expired' : s <= 60 ? ' warning' : '');
+}
+
+function updateTimerStartBtn(id, running) {
+  const btn = document.getElementById(`btn-timer-start-${id}`);
+  if (!btn) return;
+  btn.textContent = running ? '⏸ 一時停止' : '▶ スタート';
+  btn.classList.toggle('running', running);
+}
+
+function onTimerExpired(id) {
+  const bar = document.getElementById(`timer-bar-${id}`);
+  if (bar) {
+    bar.classList.add('expired-flash');
+    setTimeout(() => bar.classList.remove('expired-flash'), 4000);
+  }
+  beepTimer();
+}
+
+function beepTimer() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    [0, 0.35, 0.7].forEach(t => {
+      const osc  = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.frequency.value = 880;
+      gain.gain.setValueAtTime(0.3, ctx.currentTime + t);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + t + 0.3);
+      osc.start(ctx.currentTime + t);
+      osc.stop(ctx.currentTime + t + 0.3);
+    });
+  } catch(e) {}
+}
+
+/* ── Helpers ── */
+function val(id) { const el = document.getElementById(id); return el ? el.value.trim() : ''; }
+function set(id, v) { const el = document.getElementById(id); if (el && v) el.value = v; }
+function esc(s) {
+  return String(s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>
+</body>
+</html>

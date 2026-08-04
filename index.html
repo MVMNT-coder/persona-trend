@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ガチャ — 未来人ペルソナ探索ツール</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@500;700&family=Noto+Sans+JP:wght@300;400;500;700&display=swap" rel="stylesheet">
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+  <script src="firebase-config.js"></script>
+  <style>
+    :root {
+      --bg: #f8f7f4;
+      --surface: #ffffff;
+      --surface-tint: #f4f1fb;
+      --border: #e8e4f0;
+      --text: #1e1c2e;
+      --text-sub: #68657e;
+      --text-muted: #b2afc8;
+      --accent: #5c50d6;
+      --accent-hover: #4a3fc4;
+      --accent-light: #ede9fb;
+      --c-social: #2563eb;
+      --c-value:  #7c3aed;
+      --c-life:   #059669;
+      --c-chaos:  #db2777;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Noto Sans JP', 'Hiragino Kaku Gothic ProN', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* ── Site nav ── */
+    .site-nav {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 16px 32px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+    }
+    .nav-logo {
+      font-family: 'Shippori Mincho', serif;
+      font-size: 0.85rem; font-weight: 700;
+      color: var(--text); text-decoration: none; letter-spacing: 0.1em;
+    }
+    .nav-right { display: flex; gap: 20px; align-items: center; }
+    .nav-link {
+      font-size: 0.75rem; color: var(--text-muted); text-decoration: none;
+      letter-spacing: 0.04em; transition: color 0.2s;
+    }
+    .nav-link:hover { color: var(--accent); }
+
+    /* ── Page header ── */
+    .page-header {
+      text-align: center;
+      padding: 40px 20px 28px;
+    }
+    h1 {
+      font-family: 'Shippori Mincho', serif;
+      font-size: 1.6rem; font-weight: 700;
+      letter-spacing: 0.1em; margin-bottom: 6px;
+      color: var(--text);
+    }
+    .subtitle {
+      font-size: 0.84rem; color: var(--text-sub);
+      letter-spacing: 0.04em; font-weight: 300;
+    }
+
+    /* ── Gacha grid ── */
+    .gacha-grid {
+      display: grid; grid-template-columns: repeat(2, 1fr);
+      gap: 16px; max-width: 860px;
+      margin: 0 auto 24px; padding: 0 20px;
+    }
+    @media (max-width: 600px) { .gacha-grid { grid-template-columns: 1fr; } }
+
+    .gacha-panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px; padding: 20px;
+      display: flex; flex-direction: column; gap: 14px;
+      transition: border-color 0.3s, box-shadow 0.3s;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+    }
+    .gacha-panel.rolling {
+      border-color: var(--accent);
+      animation: panelGlow 0.6s ease-in-out infinite alternate;
+    }
+    @keyframes panelGlow {
+      from { box-shadow: 0 0 8px #5c50d620; }
+      to   { box-shadow: 0 0 24px #5c50d645; }
+    }
+
+    .panel-header { display: flex; align-items: center; gap: 10px; }
+    .panel-icon {
+      width: 36px; height: 36px; border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.1rem; flex-shrink: 0;
+    }
+    .panel-label {
+      font-size: 0.65rem; letter-spacing: 0.14em;
+      font-weight: 700; text-transform: uppercase;
+    }
+    .panel-name { font-size: 1rem; font-weight: 700; }
+
+    /* Category colours */
+    .cat-social .panel-icon  { background: #eff6ff; color: var(--c-social); }
+    .cat-social .panel-label { color: var(--c-social); }
+    .cat-social .btn-roll    { border-color: #bfdbfe; color: var(--c-social); background: #eff6ff; }
+    .cat-social .btn-roll:hover { background: var(--c-social); color: #fff; border-color: var(--c-social); }
+
+    .cat-value .panel-icon   { background: #f5f3ff; color: var(--c-value); }
+    .cat-value .panel-label  { color: var(--c-value); }
+    .cat-value .btn-roll     { border-color: #ddd6fe; color: var(--c-value); background: #f5f3ff; }
+    .cat-value .btn-roll:hover { background: var(--c-value); color: #fff; border-color: var(--c-value); }
+
+    .cat-life .panel-icon    { background: #f0fdf4; color: var(--c-life); }
+    .cat-life .panel-label   { color: var(--c-life); }
+    .cat-life .btn-roll      { border-color: #a7f3d0; color: var(--c-life); background: #f0fdf4; }
+    .cat-life .btn-roll:hover { background: var(--c-life); color: #fff; border-color: var(--c-life); }
+
+    .cat-chaos .panel-icon   { background: #fdf2f8; color: var(--c-chaos); }
+    .cat-chaos .panel-label  { color: var(--c-chaos); }
+    .cat-chaos .btn-roll     { border-color: #fbcfe8; color: var(--c-chaos); background: #fdf2f8; }
+    .cat-chaos .btn-roll:hover { background: var(--c-chaos); color: #fff; border-color: var(--c-chaos); }
+
+    /* Card display */
+    .card-display {
+      min-height: 96px; background: var(--bg);
+      border: 1px solid var(--border); border-radius: 8px;
+      padding: 14px 16px;
+      display: flex; flex-direction: column; justify-content: center; gap: 6px;
+    }
+    .card-empty { color: var(--text-muted); font-size: 0.8rem; text-align: center; letter-spacing: 0.06em; }
+    .card-number { font-size: 0.66rem; color: var(--text-muted); letter-spacing: 0.08em; }
+    .card-title {
+      font-family: 'Shippori Mincho', serif;
+      font-size: 1rem; font-weight: 700; line-height: 1.4; color: var(--text);
+    }
+    .card-desc { font-size: 0.78rem; color: var(--text-sub); line-height: 1.6; }
+
+    .card-reveal { animation: reveal 0.4s cubic-bezier(0.22, 1, 0.36, 1); }
+    @keyframes reveal {
+      from { opacity: 0; transform: translateY(8px) scale(0.97); }
+      to   { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    .btn-roll {
+      width: 100%; padding: 9px 0;
+      border-radius: 6px; border: 1.5px solid;
+      background: transparent;
+      font-size: 0.84rem; font-weight: 600; letter-spacing: 0.06em;
+      cursor: pointer; transition: all 0.2s; font-family: inherit;
+    }
+    .btn-roll:active { transform: scale(0.97); }
+    .btn-roll:disabled { opacity: 0.35; cursor: not-allowed; }
+
+    /* Roll-all button */
+    .roll-all-wrap { text-align: center; margin-bottom: 28px; }
+    .btn-all {
+      padding: 13px 44px;
+      background: var(--accent); color: #fff;
+      border: none; border-radius: 40px;
+      font-size: 0.95rem; font-weight: 700; letter-spacing: 0.08em;
+      cursor: pointer; transition: all 0.2s; font-family: inherit;
+      box-shadow: 0 4px 16px #5c50d628;
+    }
+    .btn-all:hover { background: var(--accent-hover); transform: translateY(-2px); box-shadow: 0 8px 24px #5c50d640; }
+    .btn-all:active { transform: scale(0.97); }
+
+    /* Summary */
+    .summary-panel {
+      max-width: 860px; margin: 0 auto 24px; padding: 0 20px;
+      display: none;
+    }
+    .summary-panel.visible { display: block; }
+    .summary-inner {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 14px; padding: 24px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    }
+    .summary-title {
+      font-size: 0.65rem; letter-spacing: 0.16em;
+      color: var(--text-muted); font-weight: 700; margin-bottom: 16px; text-transform: uppercase;
+    }
+    .summary-cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+    @media (max-width: 600px) { .summary-cards { grid-template-columns: 1fr; } }
+    .summary-item { background: var(--bg); border-radius: 8px; padding: 12px 14px; }
+    .summary-cat { font-size: 0.64rem; letter-spacing: 0.1em; margin-bottom: 4px; font-weight: 700; text-transform: uppercase; }
+    .summary-item-title {
+      font-family: 'Shippori Mincho', serif;
+      font-size: 0.9rem; font-weight: 700; color: var(--text);
+    }
+    .summary-item-desc { font-size: 0.74rem; color: var(--text-sub); line-height: 1.5; margin-top: 3px; }
+
+    /* Next step */
+    .next-step-wrap {
+      text-align: center; margin-bottom: 40px;
+      display: none; animation: reveal 0.5s ease;
+    }
+    .next-step-wrap.visible { display: block; }
+    .next-step-hint { font-size: 0.8rem; color: var(--text-sub); margin-bottom: 14px; }
+    .btn-to-steps {
+      padding: 13px 48px;
+      background: transparent; color: var(--accent);
+      border: 2px solid var(--accent); border-radius: 40px;
+      font-size: 0.95rem; font-weight: 700; letter-spacing: 0.08em;
+      cursor: pointer; transition: all 0.25s; font-family: inherit;
+    }
+    .btn-to-steps:hover { background: var(--accent); color: #fff; transform: translateY(-2px); }
+
+    /* Room bar */
+    .room-section { max-width: 860px; margin: 0 auto 20px; padding: 0 20px; }
+    .room-toggle-btn {
+      width: 100%; text-align: left; padding: 10px 16px;
+      background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+      color: var(--text-sub); font-size: 0.78rem; font-family: inherit; cursor: pointer;
+      letter-spacing: 0.04em; transition: all 0.2s;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .room-toggle-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .room-toggle-btn.open { border-color: var(--accent); color: var(--accent); border-radius: 10px 10px 0 0; }
+    .room-form-inner {
+      background: var(--surface); border: 1px solid var(--accent); border-top: none;
+      border-radius: 0 0 10px 10px; padding: 14px 16px;
+      display: flex; gap: 10px; flex-wrap: wrap; align-items: center;
+    }
+    .room-form-inner input {
+      flex: 1; min-width: 110px;
+      background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
+      color: var(--text); font-family: inherit; font-size: 0.82rem; padding: 8px 12px;
+    }
+    .room-form-inner input::placeholder { color: var(--text-muted); }
+    .room-form-inner input:focus { outline: none; border-color: var(--accent); }
+    .btn-room-join {
+      padding: 8px 20px; background: var(--accent); color: #fff; border: none;
+      border-radius: 6px; font-size: 0.82rem; font-weight: 700; cursor: pointer;
+      font-family: inherit; white-space: nowrap; transition: background 0.2s;
+    }
+    .btn-room-join:hover { background: var(--accent-hover); }
+    .room-status-bar {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 9px 16px; background: #f0fdf4; border: 1px solid #a7f3d0;
+      border-radius: 10px; font-size: 0.78rem; color: #065f46; letter-spacing: 0.04em;
+    }
+    .btn-room-leave {
+      padding: 3px 10px; background: transparent; border: 1px solid #a7f3d0;
+      border-radius: 4px; color: #059669; font-size: 0.72rem; cursor: pointer;
+      font-family: inherit; transition: all 0.2s;
+    }
+    .btn-room-leave:hover { background: #dcfce7; }
+
+    footer {
+      text-align: center; font-size: 0.72rem;
+      color: var(--text-muted); padding: 24px 0 16px;
+      border-top: 1px solid var(--border); margin-top: 8px;
+    }
+    footer a { color: var(--text-muted); text-decoration: none; transition: color 0.2s; }
+    footer a:hover { color: var(--accent); }
+  </style>
+</head>
+<body>
+
+<nav class="site-nav">
+  <a href="top.html" class="nav-logo">未来人ペルソナ探索ツール</a>
+  <div class="nav-right">
+    <a href="top.html" class="nav-link">トップ</a>
+    <a href="admin.html" class="nav-link">ファシリテーター画面</a>
+  </div>
+</nav>
+
+<div class="page-header">
+  <h1>ガチャを引く</h1>
+  <p class="subtitle">4枚のカードを引いて、未来を生きる人物の輪郭をつくろう</p>
+</div>
+
+<!-- ── Room Section ── -->
+<div class="room-section">
+  <div id="room-entry">
+    <button class="room-toggle-btn" id="room-toggle" onclick="toggleRoomForm()">
+      <span>🏫 ワークショップモードで使う（複数グループ同時進行）</span>
+      <span id="room-arrow">▼</span>
+    </button>
+    <div class="room-form-inner" id="room-form-inner" style="display:none">
+      <input type="text" id="inp-room"  placeholder="ルームコード（例：ABCD）" maxlength="8">
+      <input type="text" id="inp-group" placeholder="グループ名（例：グループA）">
+      <button class="btn-room-join" onclick="joinRoom()">参加する</button>
+    </div>
+  </div>
+  <div class="room-status-bar" id="room-status-bar" style="display:none">
+    <span id="room-status-text">—</span>
+    <button class="btn-room-leave" onclick="leaveRoom()">退出</button>
+  </div>
+</div>
+
+<div class="roll-all-wrap">
+  <button class="btn-all" onclick="rollAll()">すべてを引く</button>
+</div>
+
+<div class="gacha-grid">
+
+  <!-- 社会変化 -->
+  <div class="gacha-panel cat-social" id="panel-social">
+    <div class="panel-header">
+      <div class="panel-icon">🏙️</div>
+      <div>
+        <div class="panel-label">Social Change</div>
+        <div class="panel-name">社会変化</div>
+      </div>
+    </div>
+    <div class="card-display" id="display-social">
+      <div class="card-empty">— カードを引いてください —</div>
+    </div>
+    <button class="btn-roll" onclick="roll('social')">引く</button>
+  </div>
+
+  <!-- 価値観 -->
+  <div class="gacha-panel cat-value" id="panel-value">
+    <div class="panel-header">
+      <div class="panel-icon">💡</div>
+      <div>
+        <div class="panel-label">Values</div>
+        <div class="panel-name">価値観</div>
+      </div>
+    </div>
+    <div class="card-display" id="display-value">
+      <div class="card-empty">— カードを引いてください —</div>
+    </div>
+    <button class="btn-roll" onclick="roll('value')">引く</button>
+  </div>
+
+  <!-- 生活領域 -->
+  <div class="gacha-panel cat-life" id="panel-life">
+    <div class="panel-header">
+      <div class="panel-icon">🌱</div>
+      <div>
+        <div class="panel-label">Life Domain</div>
+        <div class="panel-name">生活領域</div>
+      </div>
+    </div>
+    <div class="card-display" id="display-life">
+      <div class="card-empty">— カードを引いてください —</div>
+    </div>
+    <button class="btn-roll" onclick="roll('life')">引く</button>
+  </div>
+
+  <!-- カオス -->
+  <div class="gacha-panel cat-chaos" id="panel-chaos">
+    <div class="panel-header">
+      <div class="panel-icon">⚡</div>
+      <div>
+        <div class="panel-label">Chaos</div>
+        <div class="panel-name">カオス（撹乱）</div>
+      </div>
+    </div>
+    <div class="card-display" id="display-chaos">
+      <div class="card-empty">— カードを引いてください —</div>
+    </div>
+    <button class="btn-roll" onclick="roll('chaos')">引く</button>
+  </div>
+
+</div>
+
+<!-- まとめパネル -->
+<div class="summary-panel" id="summary">
+  <div class="summary-inner">
+    <div class="summary-title">引いた4枚</div>
+    <div class="summary-cards" id="summary-cards"></div>
+  </div>
+</div>
+
+<div class="next-step-wrap" id="next-step-wrap">
+  <p class="next-step-hint">4枚のカードが揃いました。次はペルソナを育てましょう。</p>
+  <button class="btn-to-steps" onclick="goToSteps()">ペルソナ作成へ進む →</button>
+</div>
+
+<footer>
+  未来人ペルソナ探索ツール &nbsp;·&nbsp;
+  <a href="top.html">トップ</a> &nbsp;·&nbsp;
+  <a href="admin.html">ファシリテーター画面</a>
+</footer>
+
+<script>
+// ── Firebase init ──
+let db = null;
+try {
+  if (typeof FIREBASE_CONFIG !== 'undefined' && FIREBASE_CONFIG.apiKey !== 'YOUR_API_KEY') {
+    if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
+    db = firebase.firestore();
+  }
+} catch(e) { console.warn('Firebase unavailable:', e.message); }
+
+// ── Room state ──
+let roomInfo = JSON.parse(sessionStorage.getItem('pg_room') || 'null');
+const sessionId = Math.random().toString(36).slice(2, 10);
+
+window.addEventListener('DOMContentLoaded', () => {
+  if (roomInfo) { showRoomStatus(); }
+  const inpRoom = document.getElementById('inp-room');
+  if (inpRoom) {
+    inpRoom.addEventListener('input', function() {
+      this.value = this.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    });
+  }
+});
+
+function toggleRoomForm() {
+  const form  = document.getElementById('room-form-inner');
+  const arrow = document.getElementById('room-arrow');
+  const btn   = document.getElementById('room-toggle');
+  const open  = form.style.display === 'none';
+  form.style.display = open ? 'flex' : 'none';
+  arrow.textContent  = open ? '▲' : '▼';
+  btn.classList.toggle('open', open);
+}
+
+function joinRoom() {
+  const code  = (document.getElementById('inp-room').value  || '').trim().toUpperCase();
+  const gname = (document.getElementById('inp-group').value || '').trim();
+  if (!code || !gname) { alert('ルームコードとグループ名を入力してください。'); return; }
+  if (!db) { alert('Firebaseが設定されていません。\nfirebase-config.js を設定してください。'); return; }
+  roomInfo = { code, name: gname };
+  sessionStorage.setItem('pg_room', JSON.stringify(roomInfo));
+  showRoomStatus();
+}
+
+function leaveRoom() {
+  roomInfo = null;
+  sessionStorage.removeItem('pg_room');
+  document.getElementById('room-entry').style.display = 'block';
+  document.getElementById('room-status-bar').style.display = 'none';
+}
+
+function showRoomStatus() {
+  document.getElementById('room-entry').style.display = 'none';
+  document.getElementById('room-status-bar').style.display = 'flex';
+  document.getElementById('room-status-text').textContent =
+    `✓  ルーム「${roomInfo.code}」— ${roomInfo.name} として参加中`;
+  startSync();
+}
+
+function startSync() {
+  if (!db || !roomInfo) return;
+  db.collection('rooms').doc(roomInfo.code)
+    .collection('groups').doc(roomInfo.name)
+    .onSnapshot(snap => {
+      const data = snap.data();
+      if (!data || !data.drawn || data.updatedBy === sessionId) return;
+      const cats = ['social', 'value', 'life', 'chaos'];
+      let updated = false;
+      cats.forEach(cat => {
+        const remote = data.drawn[cat];
+        if (!remote) return;
+        // 差分があるときだけ更新（アニメーション重複防止）
+        if (JSON.stringify(drawn[cat]) === JSON.stringify(remote)) return;
+        drawn[cat] = remote;
+        updated = true;
+        const display = document.getElementById(`display-${cat}`);
+        const panel   = document.getElementById(`panel-${cat}`);
+        if (display) {
+          display.innerHTML = `
+            <div class="card-number">No.${remote.index + 1} / ${DECKS[cat].length}</div>
+            <div class="card-title card-reveal">${remote.title}</div>
+            <div class="card-desc card-reveal">${remote.desc}</div>`;
+        }
+        if (panel) panel.classList.remove('rolling');
+      });
+      if (updated) updateSummary();
+    }, err => console.warn('Sync error:', err.message));
+}
+
+function saveDrawn() {
+  if (!db || !roomInfo) return;
+  db.collection('rooms').doc(roomInfo.code)
+    .collection('groups').doc(roomInfo.name)
+    .set({ drawn, updatedAt: firebase.firestore.FieldValue.serverTimestamp(), updatedBy: sessionId }, { merge: true })
+    .catch(e => console.warn('Firebase save:', e.message));
+}
+
+const DECKS = {
+  social: [
+    { title: "AIが合意形成を担う",             desc: "会議や相談ごとで、AIが結論づくりの一部を担っている。" },
+    { title: "AIが個人の代理で交渉する",        desc: "人の代わりに、AIが予定・契約・条件交渉を行う。" },
+    { title: "感情や体調が常時推定される",      desc: "気分や疲労の状態が、日常的に可視化されている。" },
+    { title: "教育が年齢で区切られない",        desc: "何歳でも学び直しや越級が自然になっている。" },
+    { title: "仕事がプロジェクト参加型になる",  desc: "所属よりも、その都度どの活動に加わるかが重視される。" },
+    { title: "評価が学歴より記録で決まる",      desc: "肩書きよりも、実際の行動や貢献のログが見られる。" },
+    { title: "所有より利用権が一般化する",      desc: "持つことより、必要なときに使えることが価値になる。" },
+    { title: "家族が契約で再編される",          desc: "血縁だけでなく、合意によって家族的関係がつくられる。" },
+    { title: "健康管理が予防中心になる",        desc: "病気になってからではなく、日常の調整が重視される。" },
+    { title: "育児や介護を家族外で担う",        desc: "ケアは家庭の中だけでなく、社会全体で分担される。" },
+    { title: "個人データの主導権が本人に戻る",  desc: "自分の情報を誰に、どこまで渡すかを本人が決める。" },
+    { title: "複数コミュニティ所属が前提になる", desc: "一つの会社や地域ではなく、複数の場を行き来して生きる。" },
+  ],
+  value: [
+    { title: "回復",       desc: "頑張り続けることより、回復し続けられることが大事。" },
+    { title: "接続",       desc: "孤立して完結するより、つながりの中で生きることを重視する。" },
+    { title: "可変性",     desc: "一度決めた形を守るより、変えられることに価値がある。" },
+    { title: "透明性",     desc: "見えないことより、経緯や判断が見えることが信頼につながる。" },
+    { title: "信頼",       desc: "速さや便利さより、安心して任せられる関係が優先される。" },
+    { title: "自己決定",   desc: "自分のあり方や選択を、自分で決められることを大事にする。" },
+    { title: "ケア",       desc: "成果や効率より、互いを気にかけることが重視される。" },
+    { title: "公平性",     desc: "一律に同じより、それぞれに合った扱いのほうが公平だと考える。" },
+    { title: "継続可能性", desc: "今だけ良ければいいより、無理なく続けられることを選ぶ。" },
+    { title: "相互扶助",   desc: "一人で解決するより、助け合いながら進むことを自然と考える。" },
+    { title: "柔軟性",     desc: "固定された正解より、状況に応じて動けることに価値がある。" },
+    { title: "更新性",     desc: "完成より、学びながら更新し続けられることが望ましい。" },
+  ],
+  life: [
+    { title: "学び",            desc: "この未来人にとって、学ぶことはどう変わるか。" },
+    { title: "労働",            desc: "この未来人にとって、働くことは何を意味するか。" },
+    { title: "ケア",            desc: "この未来人は、誰をどう気にかけて生きているか。" },
+    { title: "住まい",          desc: "この未来人にとって、住むとはどんな状態か。" },
+    { title: "子育て",          desc: "この未来人は、子どもとどう関わり育てるか。" },
+    { title: "介護",            desc: "この未来人は、老いや弱さとどう向き合うか。" },
+    { title: "健康管理",        desc: "この未来人は、健康をどう保ち、どう測るか。" },
+    { title: "お金",            desc: "この未来人は、何にお金を払い、何に払わないか。" },
+    { title: "情報収集",        desc: "この未来人は、何を信じ、何を疑うか。" },
+    { title: "意思決定",        desc: "この未来人は、重要なことを誰とどう決めるか。" },
+    { title: "コミュニティ参加", desc: "この未来人は、どんな場に所属し、どう関わるか。" },
+    { title: "所有",            desc: "この未来人は、何を自分のものにしたいと思うか。" },
+  ],
+  chaos: [
+    { title: "感染症が世界的に流行する",         desc: "外出・集会・移動の制限が日常化し、会う・働く・学ぶの前提がすべて変わった。" },
+    { title: "大規模な自然災害が起きる",         desc: "地震・洪水・山火事などで、住む場所やインフラが突然失われた。" },
+    { title: "経済が急激に崩壊する",             desc: "通貨の暴落や金融危機で、雇用・貯蓄・物価が一変し、生活の見通しが立たなくなった。" },
+    { title: "戦争・武力紛争が身近になる",       desc: "地政学的対立が激化し、安全・移動の自由・日常の安心が脅かされた。" },
+    { title: "大規模停電・インフラが長期停止する", desc: "電気・水道・ネットが使えない期間が続き、あらゆる日常の前提が崩れた。" },
+    { title: "AI・システムの大規模障害が起きる", desc: "社会インフラに組み込まれたAIや基幹システムが機能不全に陥り、行政・金融・医療が止まった。" },
+    { title: "食料・エネルギーが深刻に不足する", desc: "食料や燃料が手に入りにくくなり、何をどう食べるかという生活の基盤が揺らいだ。" },
+    { title: "大規模なサイバー攻撃が起きる",     desc: "金融・医療・行政システムが攻撃され、個人情報と社会への信頼が一気に崩れた。" },
+    { title: "大量移住・難民の急増が起きる",     desc: "短期間に大勢の人が地域に流入し、文化・資源・制度が急激に変わった。" },
+    { title: "政権交代・体制の急変が起きる",     desc: "政治体制が突然変わり、これまで当たり前だったルールや権利が通じなくなった。" },
+    { title: "気候変動で住めない地域が生まれる", desc: "猛暑・海面上昇・干ばつなどで、ある地域が事実上居住不可能になった。" },
+    { title: "自動化で職が大量に消える",         desc: "AI・ロボット化が想定外のスピードで進み、多くの人が仕事を一気に失った。" },
+  ],
+};
+
+const CAT_LABELS = {
+  social: { label: "社会変化", color: "#2563eb" },
+  value:  { label: "価値観",   color: "#7c3aed" },
+  life:   { label: "生活領域", color: "#059669" },
+  chaos:  { label: "カオス",   color: "#db2777" },
+};
+
+const drawn = { social: null, value: null, life: null, chaos: null };
+
+function pickRandom(deck) { return Math.floor(Math.random() * deck.length); }
+
+function roll(cat) {
+  const panel   = document.getElementById(`panel-${cat}`);
+  const display = document.getElementById(`display-${cat}`);
+  panel.classList.add('rolling');
+  let flashes = 0;
+  const interval = setInterval(() => {
+    const i = pickRandom(DECKS[cat]);
+    display.innerHTML = `<div class="card-title">${DECKS[cat][i].title}</div>`;
+    flashes++;
+    if (flashes >= 8) {
+      clearInterval(interval);
+      const final = pickRandom(DECKS[cat]);
+      drawn[cat] = { ...DECKS[cat][final], index: final };
+      display.innerHTML = `
+        <div class="card-number">No.${final + 1} / ${DECKS[cat].length}</div>
+        <div class="card-title card-reveal">${drawn[cat].title}</div>
+        <div class="card-desc card-reveal">${drawn[cat].desc}</div>`;
+      panel.classList.remove('rolling');
+      updateSummary();
+      saveDrawn();
+    }
+  }, 80);
+}
+
+function rollAll() {
+  let delay = 0;
+  for (const cat of ['social', 'value', 'life', 'chaos']) {
+    setTimeout(() => roll(cat), delay);
+    delay += 220;
+  }
+}
+
+function goToSteps() {
+  localStorage.setItem('pg_drawn', JSON.stringify(drawn));
+  localStorage.removeItem('pg_steps');
+  const proceed = () => { location.href = 'steps.html'; };
+  if (db && roomInfo) {
+    db.collection('rooms').doc(roomInfo.code)
+      .collection('groups').doc(roomInfo.name)
+      .set({ drawn, groupName: roomInfo.name, updatedAt: firebase.firestore.FieldValue.serverTimestamp(), updatedBy: sessionId }, { merge: true })
+      .then(proceed).catch(proceed);
+  } else { proceed(); }
+}
+
+function updateSummary() {
+  const all     = Object.values(drawn).every(v => v !== null);
+  const summary = document.getElementById('summary');
+  const cards   = document.getElementById('summary-cards');
+  if (!all) {
+    summary.classList.remove('visible');
+    document.getElementById('next-step-wrap').classList.remove('visible');
+    return;
+  }
+  document.getElementById('next-step-wrap').classList.add('visible');
+  summary.classList.add('visible');
+  cards.innerHTML = Object.entries(drawn).map(([cat, card]) => `
+    <div class="summary-item">
+      <div class="summary-cat" style="color:${CAT_LABELS[cat].color}">${CAT_LABELS[cat].label}</div>
+      <div class="summary-item-title">${card.title}</div>
+      <div class="summary-item-desc">${card.desc}</div>
+    </div>`).join('');
+}
+</script>
+</body>
+</html>

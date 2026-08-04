@@ -1,0 +1,910 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>マズローの欲求階層で読み解く — 未来人ペルソナ探索ツール</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@500;700&family=Noto+Sans+JP:wght@300;400;500;700&display=swap" rel="stylesheet">
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+  <script src="firebase-config.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    @keyframes reveal {
+      from { opacity: 0; transform: translateY(10px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    :root {
+      --bg:           #f8f7f4;
+      --surface:      #ffffff;
+      --accent:       #5c50d6;
+      --accent-light: #ede9ff;
+      --text:         #1a1a1a;
+      --text-sub:     #6b6b6b;
+      --text-muted:   #a0a0a0;
+      --border:       #e8e6e0;
+      --c-social:     #2563eb;
+      --c-social-bg:  #eff6ff;
+      --c-value:      #7c3aed;
+      --c-value-bg:   #f5f3ff;
+      --c-life:       #059669;
+      --c-life-bg:    #ecfdf5;
+      --c-chaos:      #db2777;
+      --c-chaos-bg:   #fdf2f8;
+      --font-serif:   'Shippori Mincho', serif;
+      --font-sans:    'Noto Sans JP', sans-serif;
+    }
+
+    html { -webkit-font-smoothing: antialiased; }
+    body {
+      font-family: var(--font-sans);
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding-bottom: 80px;
+    }
+
+    /* ── Nav ── */
+    .site-nav {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      position: sticky; top: 0; z-index: 100;
+    }
+    .nav-inner {
+      max-width: 1000px; margin: 0 auto; padding: 0 24px;
+      height: 56px; display: flex; align-items: center;
+      justify-content: space-between;
+    }
+    .nav-logo {
+      font-family: var(--font-serif); font-weight: 700;
+      font-size: 0.9375rem; color: var(--text); text-decoration: none;
+    }
+    .nav-link {
+      font-size: 0.8125rem; color: var(--text-sub);
+      text-decoration: none; transition: color 0.15s;
+    }
+    .nav-link:hover { color: var(--accent); }
+
+    /* ── Page ── */
+    .page-body { max-width: 1000px; margin: 0 auto; padding: 40px 24px 0; }
+
+    /* ── Persona strip ── */
+    .persona-strip {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 14px; padding: 18px 22px;
+      margin-bottom: 40px;
+      display: flex; gap: 20px; align-items: flex-start;
+      flex-wrap: wrap;
+      animation: reveal 0.4s ease;
+    }
+    .strip-main { flex: 1; min-width: 180px; }
+    .strip-name {
+      font-family: var(--font-serif); font-size: 1.15rem; font-weight: 700;
+      margin-bottom: 2px;
+    }
+    .strip-age { font-size: 0.82rem; color: var(--text-sub); margin-bottom: 8px; }
+    .strip-values {
+      font-size: 0.82rem; color: var(--text-sub); line-height: 1.65;
+      border-left: 2px solid var(--accent-light); padding-left: 10px;
+    }
+    .strip-chips {
+      display: flex; flex-wrap: wrap; gap: 6px;
+      align-items: flex-start; padding-top: 2px;
+    }
+    .strip-chip {
+      padding: 4px 11px; border-radius: 20px;
+      font-size: 0.7rem; font-weight: 600; border: 1px solid;
+    }
+    .strip-chip.social { border-color: rgba(37,99,235,.3); color: var(--c-social); background: var(--c-social-bg); }
+    .strip-chip.value  { border-color: rgba(124,58,237,.3); color: var(--c-value);  background: var(--c-value-bg); }
+    .strip-chip.life   { border-color: rgba(5,150,105,.3);  color: var(--c-life);   background: var(--c-life-bg); }
+    .strip-chip.chaos  { border-color: rgba(219,39,119,.3); color: var(--c-chaos);  background: var(--c-chaos-bg); }
+
+    /* ── Lead ── */
+    .lead-section {
+      text-align: center; margin-bottom: 40px;
+      animation: reveal 0.5s ease;
+    }
+    .lead-eyebrow {
+      font-size: 0.65rem; font-weight: 700; letter-spacing: 0.18em;
+      text-transform: uppercase; color: var(--accent); margin-bottom: 10px;
+    }
+    .lead-section h1 {
+      font-family: var(--font-serif); font-size: 1.5rem; font-weight: 700;
+      letter-spacing: 0.04em; margin-bottom: 14px;
+    }
+    .lead-section p {
+      font-size: 0.88rem; color: var(--text-sub); line-height: 1.9;
+      max-width: 640px; margin: 0 auto;
+    }
+
+    /* ── Maslow pyramid ── */
+    .maslow-pyramid {
+      margin: 0 auto 40px;
+      max-width: 480px;
+      animation: reveal 0.5s ease;
+    }
+    .pyramid-row {
+      display: flex; align-items: center; justify-content: center;
+      margin-bottom: 4px; cursor: pointer; transition: opacity 0.15s;
+    }
+    .pyramid-row:hover { opacity: 0.8; }
+    .pyramid-cell {
+      border-radius: 6px; padding: 7px 16px;
+      font-size: 0.75rem; font-weight: 700; color: #fff;
+      text-align: center; letter-spacing: 0.04em;
+      display: flex; align-items: center; gap: 8px;
+      transition: box-shadow 0.15s;
+    }
+    .pyramid-cell:hover { box-shadow: 0 2px 10px rgba(0,0,0,.15); }
+    .pyr-num {
+      font-family: var(--font-serif); font-size: 0.85rem;
+      opacity: 0.8; flex-shrink: 0;
+    }
+    .pyr-label { white-space: nowrap; }
+
+    .pyramid-row:nth-child(1) .pyramid-cell { background: #7c3aed; width: 360px; }
+    .pyramid-row:nth-child(2) .pyramid-cell { background: #2563eb; width: 300px; }
+    .pyramid-row:nth-child(3) .pyramid-cell { background: #059669; width: 240px; }
+    .pyramid-row:nth-child(4) .pyramid-cell { background: #d97706; width: 180px; }
+    .pyramid-row:nth-child(5) .pyramid-cell { background: #dc2626; width: 120px; }
+
+    .pyramid-hint {
+      text-align: center; font-size: 0.7rem; color: var(--text-muted);
+      margin-top: 8px; letter-spacing: 0.04em;
+    }
+
+    /* ── Lens card ── */
+    .lens-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 16px; overflow: hidden;
+      margin-bottom: 28px;
+      animation: reveal 0.5s ease;
+    }
+    .lens-header {
+      padding: 16px 24px;
+      display: flex; align-items: center; gap: 14px;
+      border-bottom: 1px solid var(--border);
+    }
+    .lens-icon {
+      width: 40px; height: 40px; border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.25rem; flex-shrink: 0;
+    }
+    .lens-meta { flex: 1; }
+    .lens-level {
+      font-size: 0.62rem; font-weight: 700; letter-spacing: 0.14em;
+      text-transform: uppercase; margin-bottom: 2px;
+    }
+    .lens-framework {
+      font-family: var(--font-serif); font-size: 1.05rem; font-weight: 700;
+      color: var(--text);
+    }
+    .lens-sublabel {
+      font-size: 0.72rem; color: var(--text-muted);
+      text-align: right; line-height: 1.55; flex-shrink: 0;
+    }
+
+    /* Maslow level colour themes */
+    .lens-card.maslow5 .lens-header { border-left: 4px solid #7c3aed; }
+    .lens-card.maslow5 .lens-icon   { background: #f5f3ff; }
+    .lens-card.maslow5 .lens-level  { color: #6d28d9; }
+
+    .lens-card.maslow4 .lens-header { border-left: 4px solid #2563eb; }
+    .lens-card.maslow4 .lens-icon   { background: #eff6ff; }
+    .lens-card.maslow4 .lens-level  { color: #1d4ed8; }
+
+    .lens-card.maslow3 .lens-header { border-left: 4px solid #059669; }
+    .lens-card.maslow3 .lens-icon   { background: #ecfdf5; }
+    .lens-card.maslow3 .lens-level  { color: #065f46; }
+
+    .lens-card.maslow2 .lens-header { border-left: 4px solid #d97706; }
+    .lens-card.maslow2 .lens-icon   { background: #fffbeb; }
+    .lens-card.maslow2 .lens-level  { color: #92400e; }
+
+    .lens-card.maslow1 .lens-header { border-left: 4px solid #dc2626; }
+    .lens-card.maslow1 .lens-icon   { background: #fef2f2; }
+    .lens-card.maslow1 .lens-level  { color: #991b1b; }
+
+    /* ── Timer ── */
+    .timer-bar {
+      display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 10px; padding: 10px 16px;
+      margin-bottom: 28px; transition: background 0.3s, border-color 0.3s;
+    }
+    .timer-bar.expired-flash { background: #fef2f2; border-color: #fca5a5; }
+    .timer-label {
+      font-size: 0.65rem; font-weight: 700; letter-spacing: 0.12em;
+      text-transform: uppercase; color: var(--text-muted); white-space: nowrap;
+    }
+    .timer-presets { display: flex; gap: 5px; }
+    .timer-preset {
+      padding: 3px 11px; border-radius: 20px;
+      background: var(--bg); border: 1px solid var(--border);
+      font-size: 0.75rem; font-weight: 500; cursor: pointer;
+      color: var(--text-sub); font-family: var(--font-sans); transition: all 0.15s;
+    }
+    .timer-preset:hover  { border-color: var(--accent); color: var(--accent); }
+    .timer-preset.active { background: var(--accent-light); border-color: var(--accent); color: var(--accent); font-weight: 700; }
+    .timer-digits {
+      font-family: var(--font-serif); font-size: 1.45rem; font-weight: 700;
+      color: var(--text); min-width: 70px; text-align: center;
+      letter-spacing: 0.06em; transition: color 0.3s;
+    }
+    .timer-digits.warning { color: #d97706; }
+    .timer-digits.expired { color: #ef4444; }
+    .timer-controls { display: flex; gap: 7px; margin-left: auto; align-items: center; }
+    .btn-timer-start {
+      padding: 5px 16px; border-radius: 20px;
+      background: var(--accent); color: #fff; border: none;
+      font-size: 0.8rem; font-weight: 600; cursor: pointer;
+      font-family: var(--font-sans); transition: background 0.2s; white-space: nowrap;
+    }
+    .btn-timer-start:hover  { background: #4b40c4; }
+    .btn-timer-start.running { background: var(--c-life); }
+    .btn-timer-reset {
+      padding: 5px 10px; border-radius: 20px;
+      background: transparent; border: 1px solid var(--border);
+      color: var(--text-muted); font-size: 0.85rem; cursor: pointer;
+      font-family: var(--font-sans); transition: all 0.15s;
+    }
+    .btn-timer-reset:hover { border-color: var(--text-sub); color: var(--text-sub); }
+
+    /* ── Lens body ── */
+    .lens-body {
+      display: grid;
+      grid-template-columns: 2fr 3fr;
+      gap: 32px;
+      padding: 24px;
+      align-items: start;
+    }
+    .lens-explanation {
+      padding: 16px; background: var(--bg); border-radius: 10px;
+    }
+    .lens-exp-title {
+      font-size: 0.6rem; font-weight: 700; letter-spacing: 0.12em;
+      text-transform: uppercase; color: var(--text-muted); margin-bottom: 8px;
+    }
+    .lens-exp-text {
+      font-size: 0.83rem; color: var(--text-sub); line-height: 1.85;
+    }
+    .lens-fields { display: flex; flex-direction: column; gap: 18px; }
+
+    /* ── Fields ── */
+    .field-group label {
+      display: block; font-size: 0.8125rem; font-weight: 500;
+      color: var(--text-sub); margin-bottom: 6px; line-height: 1.55;
+    }
+    textarea {
+      width: 100%; background: var(--surface);
+      border: 1px solid var(--border); border-radius: 8px;
+      color: var(--text); font-family: var(--font-sans);
+      font-size: 0.875rem; line-height: 1.7;
+      padding: 10px 13px; resize: vertical;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    textarea:focus {
+      outline: none; border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-light);
+    }
+    textarea::placeholder { color: var(--text-muted); }
+
+    /* ── Synthesis ── */
+    .synthesis-section {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 16px; padding: 28px;
+      margin-bottom: 28px;
+    }
+    .synthesis-eyebrow {
+      font-size: 0.62rem; font-weight: 700; letter-spacing: 0.14em;
+      text-transform: uppercase; color: var(--accent); margin-bottom: 6px;
+    }
+    .synthesis-section h2 {
+      font-family: var(--font-serif); font-size: 1.2rem; font-weight: 700;
+      margin-bottom: 6px; letter-spacing: 0.02em;
+    }
+    .synthesis-section .sub {
+      font-size: 0.84rem; color: var(--text-sub); margin-bottom: 24px;
+      line-height: 1.75;
+    }
+    .synthesis-cols {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 20px;
+    }
+    .synthesis-col-label {
+      font-size: 0.62rem; font-weight: 700; letter-spacing: 0.1em;
+      text-transform: uppercase; margin-bottom: 6px; padding: 4px 10px;
+      border-radius: 6px; display: inline-block;
+    }
+    .syn-satisfied-label { color: #059669; background: #ecfdf5; }
+    .syn-threatened-label { color: #dc2626; background: #fef2f2; }
+
+    /* ── Discussion (voice) ── */
+    .discussion-wrap {
+      margin-bottom: 28px; padding: 20px 24px;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px;
+    }
+    .discussion-label {
+      font-size: 0.7rem; font-weight: 700; letter-spacing: 0.12em;
+      text-transform: uppercase; color: var(--text-muted);
+      margin-bottom: 12px; display: flex; align-items: center; gap: 6px;
+    }
+    .discussion-label::before { content: '🎙'; font-size: 0.85rem; }
+    .voice-controls { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+    .btn-record {
+      display: flex; align-items: center; gap: 6px;
+      padding: 8px 20px; background: var(--surface);
+      border: 1.5px solid var(--border); border-radius: 20px;
+      font-size: 0.82rem; font-weight: 600; cursor: pointer;
+      transition: all 0.2s; font-family: var(--font-sans);
+      color: var(--text-sub); white-space: nowrap;
+    }
+    .btn-record:hover { border-color: var(--accent); color: var(--accent); }
+    .btn-record.recording { background: #fef2f2; border-color: #ef4444; color: #ef4444; }
+    .btn-record .rec-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: currentColor; flex-shrink: 0;
+    }
+    .btn-record.recording .rec-dot { animation: blink 1s ease-in-out infinite; }
+    @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.2; } }
+    .record-status { font-size: 0.75rem; color: var(--text-muted); }
+    .record-status.active { color: #ef4444; }
+    .voice-interim {
+      font-size: 0.82rem; color: var(--text-muted);
+      line-height: 1.65; min-height: 1.4em;
+      font-style: italic; margin-bottom: 6px;
+    }
+    .voice-unsupported { font-size: 0.75rem; color: var(--text-muted); margin-bottom: 8px; display: none; }
+
+    /* ── Share button ── */
+    .btn-share {
+      display: flex; align-items: center; gap: 6px;
+      padding: 10px 24px; border-radius: 8px;
+      border: 1.5px solid var(--c-life); color: var(--c-life);
+      background: var(--c-life-bg); font-size: 0.875rem; font-weight: 600;
+      cursor: pointer; transition: all 0.25s; font-family: var(--font-sans);
+      letter-spacing: 0.04em; white-space: nowrap;
+    }
+    .btn-share:hover { background: var(--c-life); color: #fff; }
+    .btn-share.sent  { background: var(--c-life); color: #fff; pointer-events: none; }
+
+    /* ── Page nav ── */
+    .page-nav {
+      display: flex; justify-content: space-between; align-items: center;
+      padding-top: 20px; border-top: 1px solid var(--border);
+    }
+    .btn-nav {
+      padding: 10px 28px; border-radius: 8px;
+      border: 1.5px solid var(--border); background: transparent;
+      color: var(--text-sub); font-size: 0.875rem; font-weight: 500;
+      cursor: pointer; transition: all 0.2s; font-family: var(--font-sans);
+      letter-spacing: 0.04em; text-decoration: none; display: inline-block;
+    }
+    .btn-nav:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* ── Responsive ── */
+    @media (max-width: 680px) {
+      .lens-body { grid-template-columns: 1fr; gap: 16px; }
+      .synthesis-cols { grid-template-columns: 1fr; }
+      .lens-sublabel { display: none; }
+      .strip-chips { margin-top: 8px; }
+      .pyramid-row:nth-child(1) .pyramid-cell { width: 100%; }
+      .pyramid-row:nth-child(2) .pyramid-cell { width: 85%; }
+      .pyramid-row:nth-child(3) .pyramid-cell { width: 70%; }
+      .pyramid-row:nth-child(4) .pyramid-cell { width: 55%; }
+      .pyramid-row:nth-child(5) .pyramid-cell { width: 40%; }
+    }
+  </style>
+</head>
+<body>
+
+<nav class="site-nav">
+  <div class="nav-inner">
+    <a href="top.html" class="nav-logo">未来人ペルソナ探索ツール</a>
+    <a href="persona-card.html" class="nav-link">← ペルソナカードに戻る</a>
+  </div>
+</nav>
+
+<div class="page-body">
+
+  <div id="persona-strip"></div>
+
+  <div class="lead-section">
+    <div class="lead-eyebrow">Step 5 — Behavioral Principles</div>
+    <h1>マズローの欲求階層で読み解く</h1>
+    <p>
+      A. マズローが示した「生理的→安全→社会的→承認→自己実現」の5段階欲求に、<br>
+      このペルソナを照らし合わせましょう。<br>
+      未来の姿の中に宿る「変わらない人間の欲求」の輪郭が見えてきます。
+    </p>
+  </div>
+
+  <!-- Maslow Pyramid -->
+  <div class="maslow-pyramid">
+    <div class="pyramid-row" onclick="scrollToLevel(5)">
+      <div class="pyramid-cell"><span class="pyr-num">⑤</span><span class="pyr-label">自己実現の欲求</span></div>
+    </div>
+    <div class="pyramid-row" onclick="scrollToLevel(4)">
+      <div class="pyramid-cell"><span class="pyr-num">④</span><span class="pyr-label">承認の欲求</span></div>
+    </div>
+    <div class="pyramid-row" onclick="scrollToLevel(3)">
+      <div class="pyramid-cell"><span class="pyr-num">③</span><span class="pyr-label">社会的欲求（所属と愛）</span></div>
+    </div>
+    <div class="pyramid-row" onclick="scrollToLevel(2)">
+      <div class="pyramid-cell"><span class="pyr-num">②</span><span class="pyr-label">安全の欲求</span></div>
+    </div>
+    <div class="pyramid-row" onclick="scrollToLevel(1)">
+      <div class="pyramid-cell"><span class="pyr-num">①</span><span class="pyr-label">生理的欲求</span></div>
+    </div>
+    <p class="pyramid-hint">▲ 段をクリックすると該当セクションへ移動します</p>
+  </div>
+
+  <div class="timer-bar" id="timer-bar-cmp">
+    <span class="timer-label">⏱ タイマー</span>
+    <div class="timer-presets">
+      <button class="timer-preset" onclick="setTimerDuration(600,this)">10分</button>
+      <button class="timer-preset active" onclick="setTimerDuration(900,this)">15分</button>
+      <button class="timer-preset" onclick="setTimerDuration(1200,this)">20分</button>
+    </div>
+    <span class="timer-digits" id="timer-digits-cmp">15:00</span>
+    <div class="timer-controls">
+      <button class="btn-timer-start" id="btn-timer-start-cmp" onclick="toggleTimer()">▶ スタート</button>
+      <button class="btn-timer-reset" onclick="resetTimer()" title="リセット">↺</button>
+    </div>
+  </div>
+
+  <div id="lens-panels"></div>
+
+  <div class="synthesis-section">
+    <div class="synthesis-eyebrow">Synthesis</div>
+    <h2>統合：どの欲求が変わり、何が変わらないか</h2>
+    <p class="sub">
+      5段階を通じて気づいたことを言語化してみましょう。<br>
+      テクノロジーや社会変化が欲求の「充足手段」を変えても、欲求そのものは残り続けているでしょうか。
+    </p>
+    <div class="synthesis-cols">
+      <div class="field-group">
+        <div class="synthesis-col-label syn-satisfied-label">充足されている欲求・層</div>
+        <textarea id="syn-change" rows="6"
+          placeholder="例：安全欲求は記録・可変性・複数の拠点で充足されている。承認は所属コミュニティの中で小さく満たされる。自己実現は「複数の自分」を持つことで広がっている。"></textarea>
+      </div>
+      <div class="field-group">
+        <div class="synthesis-col-label syn-threatened-label">脅かされている欲求・層</div>
+        <textarea id="syn-constant" rows="6"
+          placeholder="例：生理的欲求の充足形が変わり不安定さが増している。所属欲求は満たされにくく、孤立のリスクが高い。承認が外部スコアに依存しすぎている。"></textarea>
+      </div>
+    </div>
+  </div>
+
+  <div class="discussion-wrap">
+    <div class="discussion-label">ディスカッションメモ（音声書き起こし）</div>
+    <p class="voice-unsupported" id="cmp-unsupported">※ このブラウザは音声認識に対応していません。テキストを直接入力してください。</p>
+    <div class="voice-controls">
+      <button class="btn-record" id="cmp-record-btn" onclick="toggleRecord('cmp')">
+        <span class="rec-dot"></span><span class="rec-label">録音開始</span>
+      </button>
+      <span class="record-status" id="cmp-record-status"></span>
+    </div>
+    <p class="voice-interim" id="cmp-interim"></p>
+    <textarea id="cmp-discuss" rows="4"
+      placeholder="録音した内容がここに表示されます。直接編集することもできます。"></textarea>
+  </div>
+
+  <div class="page-nav">
+    <a href="persona-card.html" class="btn-nav">← ペルソナカードに戻る</a>
+    <button class="btn-share" id="share-btn" onclick="shareNow()">↑ 更新を共有</button>
+    <a href="trends.html" class="btn-nav">最初からやり直す</a>
+  </div>
+
+</div>
+
+<script>
+// ── Firebase init ──
+let db = null;
+try {
+  if (typeof FIREBASE_CONFIG !== 'undefined' && FIREBASE_CONFIG.apiKey !== 'YOUR_API_KEY') {
+    if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
+    db = firebase.firestore();
+  }
+} catch(e) { console.warn('Firebase unavailable:', e.message); }
+
+const roomInfo  = JSON.parse(sessionStorage.getItem('pg_room') || 'null');
+const sessionId = Math.random().toString(36).slice(2, 10);
+const drawn  = JSON.parse(localStorage.getItem('pg_drawn')   || 'null');
+const steps  = JSON.parse(localStorage.getItem('pg_steps')   || '{}');
+let   compare = JSON.parse(localStorage.getItem('pg_compare') || '{}');
+
+/* ── Maslow levels (always shown, lowest → highest) ── */
+const MASLOW_LEVELS = [
+  {
+    id: 'maslow1', cls: 'maslow1', icon: '🍚', num: '①',
+    level: '第1層 — 生理的欲求',
+    framework: '生理的欲求（Physiological Needs）',
+    sublabel: 'A. マズロー\n欲求階層説・1943年',
+    explanation:
+      '人間が生きるための最も根本的な欲求。食事・睡眠・体温調節・住居・健康・身体的安全など。' +
+      'この層が満たされていない限り、より上位の欲求は意識に上りにくい。' +
+      'テクノロジーは生理的欲求の充足形をどう変えているか？' +
+      '「食べること」「眠ること」「健康を守ること」の形が変わる中で、根本的な欲求そのものは変わらない。',
+    q1label: 'このペルソナは「食・睡眠・住居・健康」をどのように確保しているか？未来社会での変化は何か？',
+    q1ph:    '例：食事はサブスク宅配と自炊の組み合わせ。睡眠は健康データで管理。住居はサブスク型の多拠点居住。',
+    q2label: '生理的欲求の充足が「脅かされる」局面はあるか？身体のケアをどう優先・後回しにしているか？',
+    q2ph:    '例：忙しさで食事や睡眠が不規則になりやすい。身体よりデジタルな安心を優先しがち。',
+  },
+  {
+    id: 'maslow2', cls: 'maslow2', icon: '🛡️', num: '②',
+    level: '第2層 — 安全の欲求',
+    framework: '安全の欲求（Safety Needs）',
+    sublabel: 'A. マズロー\n欲求階層説・1943年',
+    explanation:
+      '危険・脅威・不安からの解放を求める欲求。身体的安全・経済的安定・健康・財産・秩序・予測可能性など。' +
+      '不確実性の高い時代、急速な技術変化、プライバシーの侵食、経済的不安定さがこの欲求に大きく影響する。' +
+      '「安全」の根拠が「終身雇用・持ち家・年金」から何へと変わっているのか？',
+    q1label: 'このペルソナにとって「安全・安心」の根拠は何か？何が脅威として感じられているか？',
+    q1ph:    '例：複数の収入源があること。スキルの記録が残ること。特定の会社に依存しないこと。',
+    q2label: '安全欲求を充足するための「仕組みや手段」はどう変わったか？親世代と比べると何が変わっているか？',
+    q2ph:    '例：貯金より「信頼スコア」や「実績ログ」で安心を得る。保険より柔軟なセーフティーネット。',
+  },
+  {
+    id: 'maslow3', cls: 'maslow3', icon: '🤝', num: '③',
+    level: '第3層 — 社会的欲求（所属と愛）',
+    framework: '社会的欲求（Love & Belonging Needs）',
+    sublabel: 'A. マズロー\n欲求階層説・1943年',
+    explanation:
+      '人間は孤独を避け、集団に属し、愛し愛されたいという欲求を持つ。' +
+      '家族・友人・恋愛・コミュニティへの帰属感・仲間意識など。' +
+      'デジタルコミュニティの発展により「つながり」の形は多様化するが、帰属したいという衝動は変わらない。' +
+      '「ゆるいつながり」と「深いつながり」のバランスはどう取られているか？',
+    q1label: 'このペルソナはどのコミュニティ・関係に「所属」を感じているか？「つながり」の形はどんな形をしているか？',
+    q1ph:    '例：オンラインコミュニティ複数に所属。リアルな友人は少数だが深い。家族より選んだ仲間が中心。',
+    q2label: 'この社会での孤立・排除・疎外はどんな形で現れるか？つながりが「薄れる」危険はどこにあるか？',
+    q2ph:    '例：コミュニティから外されることへの不安。オンラインのつながりがリアルの孤独を隠している。',
+  },
+  {
+    id: 'maslow4', cls: 'maslow4', icon: '⭐', num: '④',
+    level: '第4層 — 承認の欲求',
+    framework: '承認の欲求（Esteem Needs）',
+    sublabel: 'A. マズロー\n欲求階層説・1943年',
+    explanation:
+      '「外的承認欲求」（他者からの評価・尊重・地位・名声）と「内的承認欲求」（自己尊重・達成感・自信）の2つがある。' +
+      'SNS・評判スコア・実績ログなど、承認の「可視化」が進む時代。' +
+      '外からの承認に過度に依存すると自尊感情が不安定になる危険がある。' +
+      '何をもって「一人前」「認められた」と感じるかの基準は、誰が決めているのか？',
+    q1label: 'このペルソナにとって「承認される」「認められる」とはどういうことか？誰から、何で認められることを求めているか？',
+    q1ph:    '例：特定のコミュニティ内での信頼。実績ログの蓄積。自分が納得できる選択をしていること。',
+    q2label: '承認の「形」（何をもって評価されるか）はどう変わったか？自己尊重（内的承認）はどこから来るか？',
+    q2ph:    '例：学歴より実績ログ。フォロワー数より共感の質。「比べられる」基準が変わっている。',
+  },
+  {
+    id: 'maslow5', cls: 'maslow5', icon: '🌟', num: '⑤',
+    level: '第5層 — 自己実現の欲求',
+    framework: '自己実現の欲求（Self-Actualization Needs）',
+    sublabel: 'A. マズロー\n欲求階層説・1943年',
+    explanation:
+      '自分の潜在能力を最大限に発揮し「なりたい自分」になることへの欲求。' +
+      '創造性・自律性・真正性・成長・意味探求・ピーク体験などが含まれる。' +
+      'マズローは晩年に「自己超越（自己を超えて他者・社会・宇宙とつながること）」を第6層として加えた。' +
+      'この層の「形」は個人・文化・時代によって大きく異なる。この未来人にとっての自己実現とは何か？',
+    q1label: 'このペルソナにとって「自己実現」とはどんな姿か？何をすることが「本当の自分」を生きていると感じさせるか？',
+    q1ph:    '例：複数の役割を自由に切り替えながら生きること。特定のコミュニティで貢献できること。好きなことで生計を立てること。',
+    q2label: 'この未来人の自己実現は「個人」か「共同体」か？どんな制約や障壁が自己実現を妨げているか？',
+    q2ph:    '例：経済的不安が自己実現の追求を難しくしている。社会の期待と自分の欲求がずれている。',
+  },
+];
+
+/* ── Render ── */
+window.addEventListener('DOMContentLoaded', () => {
+  renderPersonaStrip();
+  renderLenses();
+  restoreAll();
+  startSync();
+
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) {
+    const el = document.getElementById('cmp-unsupported');
+    const btn = document.getElementById('cmp-record-btn');
+    if (el) el.style.display = 'block';
+    if (btn) btn.style.display = 'none';
+  }
+
+  document.addEventListener('input', e => {
+    if (e.target.tagName === 'TEXTAREA') saveAll();
+  });
+});
+
+function scrollToLevel(n) {
+  const el = document.getElementById(`maslow${n}-card`);
+  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function renderPersonaStrip() {
+  const s4   = steps.step4 || {};
+  const name = s4.name   || '（名前未設定）';
+  const age  = s4.age    || '';
+  const vals = s4.values || '';
+
+  let chips = '';
+  if (drawn) {
+    if (drawn.social) chips += `<span class="strip-chip social">${esc(drawn.social.title)}</span>`;
+    if (drawn.chaos)  chips += `<span class="strip-chip chaos">${esc(drawn.chaos.title)}</span>`;
+    if (drawn.value)  chips += `<span class="strip-chip value">${esc(drawn.value.title)}</span>`;
+    if (drawn.life)   chips += `<span class="strip-chip life">${esc(drawn.life.title)}</span>`;
+  }
+
+  document.getElementById('persona-strip').innerHTML = `
+    <div class="persona-strip">
+      <div class="strip-main">
+        <div class="strip-name">${esc(name)}</div>
+        ${age  ? `<div class="strip-age">${esc(age)}</div>` : ''}
+        ${vals ? `<div class="strip-values">${esc(vals)}</div>` : ''}
+      </div>
+      ${chips ? `<div class="strip-chips">${chips}</div>` : ''}
+    </div>`;
+}
+
+function renderLenses() {
+  document.getElementById('lens-panels').innerHTML = MASLOW_LEVELS.map(l => `
+    <div class="lens-card ${l.cls}" id="${l.id}-card">
+      <div class="lens-header">
+        <div class="lens-icon">${l.icon}</div>
+        <div class="lens-meta">
+          <div class="lens-level">${esc(l.level)}</div>
+          <div class="lens-framework">${esc(l.framework)}</div>
+        </div>
+        <div class="lens-sublabel">${esc(l.sublabel)}</div>
+      </div>
+      <div class="lens-body">
+        <div class="lens-explanation">
+          <div class="lens-exp-title">この欲求とは</div>
+          <div class="lens-exp-text">${esc(l.explanation)}</div>
+        </div>
+        <div class="lens-fields">
+          <div class="field-group">
+            <label>${esc(l.q1label)}</label>
+            <textarea id="${l.id}-q1" rows="4" placeholder="${esc(l.q1ph)}"></textarea>
+          </div>
+          <div class="field-group">
+            <label>${esc(l.q2label)}</label>
+            <textarea id="${l.id}-q2" rows="4" placeholder="${esc(l.q2ph)}"></textarea>
+          </div>
+        </div>
+      </div>
+    </div>`).join('');
+}
+
+/* ── Save / Restore ── */
+function saveAll() {
+  compare = {};
+  MASLOW_LEVELS.forEach(l => {
+    compare[l.id] = { q1: val(`${l.id}-q1`), q2: val(`${l.id}-q2`) };
+  });
+  compare.synthesis = { change: val('syn-change'), constant: val('syn-constant') };
+  compare.discuss   = val('cmp-discuss');
+  localStorage.setItem('pg_compare', JSON.stringify(compare));
+  if (db && roomInfo) {
+    db.collection('rooms').doc(roomInfo.code)
+      .collection('groups').doc(roomInfo.name)
+      .set({ compare, updatedAt: firebase.firestore.FieldValue.serverTimestamp(), updatedBy: sessionId }, { merge: true })
+      .catch(e => console.warn('Firebase save:', e.message));
+  }
+}
+
+/* ── Real-time sync ── */
+function startSync() {
+  if (!db || !roomInfo) return;
+  db.collection('rooms').doc(roomInfo.code)
+    .collection('groups').doc(roomInfo.name)
+    .onSnapshot(snap => {
+      const data = snap.data();
+      if (!data || data.updatedBy === sessionId) return;
+      if (data.compare) applyRemoteCompare(data.compare);
+    }, err => console.warn('Sync error:', err.message));
+}
+
+function shareNow() {
+  saveAll();
+  const btn = document.getElementById('share-btn');
+  if (!btn) return;
+  btn.classList.add('sent');
+  btn.textContent = '✓ 共有しました';
+  setTimeout(() => {
+    btn.classList.remove('sent');
+    btn.textContent = '↑ 更新を共有';
+  }, 2000);
+}
+
+function applyRemoteCompare(r) {
+  Object.assign(compare, r);
+  localStorage.setItem('pg_compare', JSON.stringify(compare));
+  const sync = (id, v) => {
+    const el = document.getElementById(id);
+    if (el && el !== document.activeElement) el.value = v || '';
+  };
+  MASLOW_LEVELS.forEach(l => {
+    if (r[l.id]) { sync(`${l.id}-q1`, r[l.id].q1); sync(`${l.id}-q2`, r[l.id].q2); }
+  });
+  if (r.synthesis) { sync('syn-change', r.synthesis.change); sync('syn-constant', r.synthesis.constant); }
+  sync('cmp-discuss', r.discuss);
+}
+
+function restoreAll() {
+  MASLOW_LEVELS.forEach(l => {
+    if (compare[l.id]) {
+      set(`${l.id}-q1`, compare[l.id].q1);
+      set(`${l.id}-q2`, compare[l.id].q2);
+    }
+  });
+  if (compare.synthesis) {
+    set('syn-change',   compare.synthesis.change);
+    set('syn-constant', compare.synthesis.constant);
+  }
+  set('cmp-discuss', compare.discuss);
+}
+
+/* ── Voice transcription ── */
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+const recorders = {};
+
+function toggleRecord(stepId) {
+  if (recorders[stepId]) { stopRecord(stepId); } else { startRecord(stepId); }
+}
+
+function startRecord(stepId) {
+  if (!SpeechRecognition) return;
+  const rec = new SpeechRecognition();
+  rec.lang = 'ja-JP';
+  rec.continuous = true;
+  rec.interimResults = true;
+
+  const textarea = document.getElementById(`${stepId}-discuss`);
+  const interim  = document.getElementById(`${stepId}-interim`);
+  let finalText  = textarea.value;
+
+  rec.onresult = (e) => {
+    let interimText = '';
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      if (e.results[i].isFinal) {
+        finalText += e.results[i][0].transcript;
+        textarea.value = finalText;
+        saveAll();
+      } else {
+        interimText += e.results[i][0].transcript;
+      }
+    }
+    if (interim) interim.textContent = interimText;
+  };
+
+  rec.onerror = () => stopRecord(stepId);
+  rec.onend   = () => {
+    if (recorders[stepId]) {
+      try { rec.start(); } catch(_) { stopRecord(stepId); }
+    }
+  };
+
+  rec.start();
+  recorders[stepId] = rec;
+  setRecordUI(stepId, true);
+}
+
+function stopRecord(stepId) {
+  if (recorders[stepId]) {
+    recorders[stepId].onend = null;
+    recorders[stepId].stop();
+    recorders[stepId] = null;
+  }
+  const interim = document.getElementById(`${stepId}-interim`);
+  if (interim) interim.textContent = '';
+  setRecordUI(stepId, false);
+}
+
+function setRecordUI(stepId, isRecording) {
+  const btn    = document.getElementById(`${stepId}-record-btn`);
+  const status = document.getElementById(`${stepId}-record-status`);
+  if (btn) {
+    btn.classList.toggle('recording', isRecording);
+    const label = btn.querySelector('.rec-label');
+    if (label) label.textContent = isRecording ? '録音停止' : '録音開始';
+  }
+  if (status) {
+    status.textContent = isRecording ? '録音中...' : '';
+    status.classList.toggle('active', isRecording);
+  }
+}
+
+/* ── Timer ── */
+const cmpTimer = { total: 900, seconds: 900, interval: null };
+
+function setTimerDuration(secs, btn) {
+  clearInterval(cmpTimer.interval);
+  cmpTimer.interval = null;
+  cmpTimer.total   = secs;
+  cmpTimer.seconds = secs;
+  updateTimerDisplay();
+  updateTimerStartBtn(false);
+  document.querySelectorAll('#timer-bar-cmp .timer-preset').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+}
+
+function toggleTimer() {
+  if (cmpTimer.interval) {
+    clearInterval(cmpTimer.interval);
+    cmpTimer.interval = null;
+    updateTimerStartBtn(false);
+  } else {
+    if (cmpTimer.seconds <= 0) { cmpTimer.seconds = cmpTimer.total; }
+    cmpTimer.interval = setInterval(tickTimer, 1000);
+    updateTimerStartBtn(true);
+  }
+}
+
+function tickTimer() {
+  cmpTimer.seconds = Math.max(0, cmpTimer.seconds - 1);
+  updateTimerDisplay();
+  if (cmpTimer.seconds <= 0) {
+    clearInterval(cmpTimer.interval);
+    cmpTimer.interval = null;
+    updateTimerStartBtn(false);
+    onTimerExpired();
+  }
+}
+
+function resetTimer() {
+  clearInterval(cmpTimer.interval);
+  cmpTimer.interval = null;
+  cmpTimer.seconds  = cmpTimer.total;
+  updateTimerDisplay();
+  updateTimerStartBtn(false);
+  document.getElementById('timer-bar-cmp')?.classList.remove('expired-flash');
+}
+
+function updateTimerDisplay() {
+  const el = document.getElementById('timer-digits-cmp');
+  if (!el) return;
+  const s = cmpTimer.seconds;
+  el.textContent = `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
+  el.className = 'timer-digits' + (s <= 0 ? ' expired' : s <= 60 ? ' warning' : '');
+}
+
+function updateTimerStartBtn(running) {
+  const btn = document.getElementById('btn-timer-start-cmp');
+  if (!btn) return;
+  btn.textContent = running ? '⏸ 一時停止' : '▶ スタート';
+  btn.classList.toggle('running', running);
+}
+
+function onTimerExpired() {
+  const bar = document.getElementById('timer-bar-cmp');
+  if (bar) { bar.classList.add('expired-flash'); setTimeout(() => bar.classList.remove('expired-flash'), 4000); }
+  beepTimer();
+}
+
+function beepTimer() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    [0, 0.35, 0.7].forEach(t => {
+      const osc = ctx.createOscillator(), gain = ctx.createGain();
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.frequency.value = 880;
+      gain.gain.setValueAtTime(0.3, ctx.currentTime + t);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + t + 0.3);
+      osc.start(ctx.currentTime + t); osc.stop(ctx.currentTime + t + 0.3);
+    });
+  } catch(e) {}
+}
+
+/* ── Helpers ── */
+function val(id) { const el = document.getElementById(id); return el ? el.value.trim() : ''; }
+function set(id, v) { const el = document.getElementById(id); if (el && v) el.value = v; }
+function esc(s) {
+  return String(s || '')
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>
+</body>
+</html>
